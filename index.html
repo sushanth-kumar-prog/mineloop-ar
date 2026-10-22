@@ -1,0 +1,1645 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>MineLoop Pod Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: full-bleed 3D stage; a machine-HMI style overlay (top bar, status pill, zone rail, side card / bottom sheet) that also works as the AR DOM overlay.
+   Single deliberate look: dark control-panel UI, LED green accent, amber for running, red for reject / closed. */
+:root {
+  color-scheme: dark;
+  --stage-1: #3b4751;
+  --stage-2: #161b20;
+  --panel: rgba(18, 23, 27, 0.93);
+  --panel-solid: #161c20;
+  --well: #0f1417;
+  --line: #2f3b43;
+  --line-strong: #44535d;
+  --fg: #e8ede9;
+  --text: #d3dbd6;
+  --muted: #98a6a0;
+  --faint: #6c7a74;
+  --accent: #3fe08c;
+  --accent-deep: #1d7656;
+  --accent-wash: #12342a;
+  --amber: #f2b33d;
+  --red: #ff5a4a;
+  --red-wash: #4a2420;
+  --slurry: #c98a4b;
+  --water: #4aa3ec;
+  --water-b: #9fd3ff;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; color: var(--fg); font-family: var(--body); font-size: 14px;
+  background: radial-gradient(120% 90% at 50% 30%, var(--stage-1), var(--stage-2));
+}
+body.ar { background: transparent; }
+#stage { position: fixed; inset: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+#ui { position: fixed; inset: 0; pointer-events: none; font-family: var(--body); }
+#ui .hit { pointer-events: auto; }
+
+/* top bar */
+.top {
+  position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.brand { display: flex; flex-direction: column; gap: 2px; text-shadow: 0 1px 8px rgba(0,0,0,.45); }
+.brand b { font-family: var(--display); font-weight: 700; font-size: 22px; letter-spacing: .08em; line-height: 1; }
+.brand span { font-size: 11.5px; color: var(--muted); letter-spacing: .02em; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.btn {
+  font: 600 13px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--fg);
+  background: var(--panel); border: 1px solid var(--line-strong); border-radius: 6px; padding: 10px 12px; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .chip:focus-visible, .seg button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toggle input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent-deep); border-color: var(--accent); }
+.btn.primary:hover { background: #22895f; }
+.btn.danger { background: var(--red-wash); border-color: var(--red); }
+.btn[disabled] { opacity: .45; cursor: default; }
+.btn svg { width: 16px; height: 16px; }
+.btn.sm { min-height: 32px; padding: 7px 10px; font-size: 12px; }
+
+/* status pill */
+.status {
+  position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(56px + env(safe-area-inset-top, 0px));
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; max-width: min(560px, calc(100% - 440px));
+}
+.pill { display: inline-flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; font: 600 12px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--text); white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 8px var(--amber); }
+.pill.ok::before { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.pill.bad::before { background: var(--red); box-shadow: 0 0 8px var(--red); }
+.pill b { font-family: var(--mono); font-weight: 500; letter-spacing: 0; color: var(--fg); }
+
+/* zone rail */
+.rail {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); padding-top: 8px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.rail::-webkit-scrollbar { display: none; }
+.chip {
+  flex: none; display: inline-flex; align-items: baseline; gap: 6px; cursor: pointer; color: var(--fg);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px;
+  font: 500 13px/1 var(--display); letter-spacing: .04em;
+}
+.chip i { font-style: normal; font-weight: 700; color: var(--accent); }
+.chip[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); }
+
+/* info card */
+.card {
+  position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(70px + env(safe-area-inset-top, 0px)); bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  width: 384px; max-width: calc(100% - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(6px);
+}
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.tag { font: 700 12px/1 var(--display); letter-spacing: .14em; color: var(--accent); text-transform: uppercase; }
+.card h2 { margin: 5px 0 0; font: 700 26px/1.05 var(--display); letter-spacing: .01em; text-wrap: balance; }
+.x { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 6px; border-radius: 6px; }
+.x:hover { color: var(--fg); }
+.x svg { width: 18px; height: 18px; display: block; }
+.card-body { overflow-y: auto; padding: 12px 16px 16px; display: flex; flex-direction: column; gap: 14px; }
+.card-body p { margin: 0; line-height: 1.5; color: var(--text); }
+.specs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.specs li { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 13px; line-height: 1.4; color: #cfd7d2; display: flex; gap: 8px; }
+.specs li::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: 6px; border-radius: 1px; background: var(--accent-deep); }
+.next { display: flex; flex-direction: column; gap: 6px; }
+.next h3, .panel h3 { margin: 0; font: 600 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.soon { font-size: 12.5px; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 6px; padding: 8px 10px; line-height: 1.4; }
+.soon b { color: var(--amber); font-weight: 600; }
+
+/* control panels */
+.panel { display: flex; flex-direction: column; gap: 10px; background: var(--panel-solid); border: 1px solid var(--line-strong); border-radius: 8px; padding: 12px; }
+.panel-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.led { display: inline-flex; align-items: center; gap: 7px; font: 600 12px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.led::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: #34403b; box-shadow: inset 0 0 0 1px #4b5853; }
+.led[data-s="run"] { color: var(--amber); } .led[data-s="run"]::before { background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+.led[data-s="pass"], .led[data-s="ok"] { color: var(--accent); } .led[data-s="pass"]::before, .led[data-s="ok"]::before { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+.led[data-s="fail"] { color: var(--red); } .led[data-s="fail"]::before { background: var(--red); box-shadow: 0 0 10px var(--red); }
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.steps span { font: 600 11px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; text-align: center; color: var(--faint); padding: 6px 2px; border-radius: 4px; background: #1d252a; }
+.steps span.on { color: #1a1300; background: var(--amber); }
+.steps span.done { color: var(--accent); background: var(--accent-wash); }
+.graph { width: 100%; height: 120px; display: block; background: var(--well); border-radius: 6px; border: 1px solid var(--line); }
+.reads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.reads.two { grid-template-columns: repeat(2, 1fr); }
+.read { background: var(--well); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; min-width: 0; }
+.read small { display: block; font: 600 10.5px/1 var(--display); letter-spacing: .12em; text-transform: uppercase; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.read b { display: block; margin-top: 5px; font: 500 16px/1 var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.read b em { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 2px; }
+.read.big b { font-size: 24px; }
+.ctrl { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: #cfd7d2; cursor: pointer; }
+.toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.toggle span { width: 32px; height: 18px; border-radius: 999px; background: #2a343a; border: 1px solid var(--line-strong); position: relative; flex: none; }
+.toggle span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .15s; }
+.toggle input:checked + span { background: var(--red-wash); border-color: var(--red); }
+.toggle input:checked + span::after { transform: translateX(14px); background: var(--red); }
+.toggle.go input:checked + span { background: var(--accent-wash); border-color: var(--accent); }
+.toggle.go input:checked + span::after { background: var(--accent); }
+.log { list-style: none; margin: 0; padding: 0; font: 400 12px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+.log li { display: grid; grid-template-columns: 3.4em 1fr auto; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); color: #c3ccc7; }
+.log li b { font-weight: 500; }
+.ok { color: var(--accent); } .bad { color: var(--red); } .warn { color: var(--amber); }
+.log li.empty { display: block; color: var(--faint); font-family: var(--body); }
+.events { list-style: none; margin: 0; padding: 0; font-size: 12px; line-height: 1.35; max-height: 120px; overflow-y: auto; }
+.events li { display: grid; grid-template-columns: 4.2em 1fr; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); color: #c3ccc7; }
+.events li time { font-family: var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.events li.empty { display: block; color: var(--faint); }
+.tally { display: flex; gap: 14px; flex-wrap: wrap; font: 500 12px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.tally b { font-family: var(--mono); color: var(--fg); letter-spacing: 0; margin-left: 4px; }
+.note { font-size: 11.5px; color: var(--faint); line-height: 1.4; }
+.note b { color: var(--amber); font-weight: 500; }
+.field { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: #cfd7d2; }
+.field input[type=number] { width: 7.5em; background: var(--well); border: 1px solid var(--line-strong); border-radius: 6px; color: var(--fg); font: 500 14px var(--mono); padding: 6px 8px; text-align: right; }
+.slider { display: flex; flex-direction: column; gap: 6px; }
+.slider .row { display: flex; justify-content: space-between; align-items: baseline; font-size: 12.5px; color: #cfd7d2; }
+.slider .row b { font: 500 14px var(--mono); color: var(--fg); }
+.slider input[type=range] { width: 100%; accent-color: var(--accent); }
+.scale { position: relative; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--red-wash) 0 var(--lo), var(--accent-wash) var(--lo) var(--hi), #3a2f18 var(--hi) 100%); }
+.scale-labels { display: flex; justify-content: space-between; font: 600 10.5px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.seg { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.seg button { font: 600 12px/1 var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--text); background: var(--well); border: 1px solid var(--line); border-radius: 6px; padding: 8px 2px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.seg button small { font: 500 11px/1 var(--mono); letter-spacing: 0; color: var(--muted); text-transform: none; }
+.seg button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-wash); }
+.gauge { position: relative; height: 14px; border-radius: 4px; background: #1d252a; overflow: hidden; }
+.gauge i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #6b5a46, #a08b70); }
+.gauge u { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--accent); }
+.gauge-labels { display: flex; justify-content: space-between; font: 500 11px/1 var(--mono); color: var(--faint); }
+.chipline { display: flex; gap: 6px; flex-wrap: wrap; }
+.state { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 4px; font: 600 12px/1 var(--display); letter-spacing: .1em; text-transform: uppercase; background: #1d252a; color: var(--muted); }
+.state.ok { background: var(--accent-wash); color: var(--accent); }
+.state.warn { background: #3a2f18; color: var(--amber); }
+.state.bad { background: var(--red-wash); color: var(--red); }
+.route { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.route div { border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; background: var(--well); }
+.route div.on { border-color: var(--accent); }
+.route small { display: block; font: 600 10.5px/1.2 var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.route b { display: block; margin-top: 4px; font: 500 14px/1 var(--mono); }
+hr.sep { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100%; }
+
+/* hints + AR controls */
+.hint {
+  z-index: 5; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: min(320px, calc(100% - 32px));
+  background: var(--panel); border: 1px solid var(--line-strong); border-radius: 10px; padding: 14px 16px; text-align: center; line-height: 1.45;
+}
+.hint b { display: block; font: 700 18px/1.1 var(--display); letter-spacing: .04em; margin-bottom: 4px; }
+.hint.toast { top: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 14px; font-size: 13px; }
+.arbar { position: absolute; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top, 0px)); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 32px); }
+.arbar .btn { padding: 8px 10px; min-height: 36px; }
+#loading { position: absolute; inset: 0; display: grid; place-items: center; font: 600 14px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+
+body:not(.ar) .ar-only { display: none !important; }
+body.ar .desk-only { display: none !important; }
+
+/* tour bar (lower third) */
+.tourbar {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: min(780px, calc(100% - 32px)); background: var(--panel); border: 1px solid var(--line-strong); border-left: 4px solid var(--accent);
+  border-radius: 10px; padding: 12px 14px 14px; display: grid; grid-template-columns: 1fr auto; gap: 6px 14px; align-items: center; overflow: hidden;
+}
+.tourbar .tag { grid-column: 1; }
+.tourbar h3 { grid-column: 1; margin: 0; font: 700 24px/1.05 var(--display); text-wrap: balance; }
+.tourbar p { grid-column: 1 / -1; margin: 0; color: var(--text); line-height: 1.45; font-size: 13.5px; }
+.tb-ctrl { grid-column: 2; grid-row: 1 / span 2; display: flex; gap: 6px; }
+.tb-ctrl .btn { min-height: 36px; padding: 8px 10px; }
+.tb-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #1d252a; }
+.tb-prog i { display: block; height: 100%; width: 0; background: var(--accent); }
+.tb-dots { grid-column: 1 / -1; display: flex; gap: 4px; }
+.tb-dots span { flex: 1; height: 3px; border-radius: 2px; background: #2a343a; }
+.tb-dots span.on { background: var(--accent); } .tb-dots span.done { background: var(--accent-deep); }
+body.tour .rail, body.tour .card { display: none !important; }
+/* sheets: setpoints + faults */
+.group { display: flex; flex-direction: column; gap: 8px; }
+.group h3 { margin: 0; font: 600 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.group .field { border-top: 1px solid var(--line); padding-top: 8px; }
+.group .field small { display: block; color: var(--faint); font-size: 11.5px; margin-top: 2px; }
+.fault { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: var(--panel-solid); }
+.fault.on { border-color: var(--red); }
+.fault-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.fault-top b { font: 700 17px/1.1 var(--display); letter-spacing: .02em; }
+.fault p { font-size: 12.5px; }
+.mixbar { display: flex; height: 16px; border-radius: 4px; overflow: hidden; border: 1px solid var(--line); }
+.mixbar i { display: block; height: 100%; }
+.mixbar .k { background: #6b5a46; } .mixbar .d { background: #bdb6a6; } .mixbar .c { background: #7d8486; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+
+@media (max-width: 1000px) { .status { top: auto; left: 50%; transform: translateX(-50%); justify-content: center; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px); } body.card-open .status, body.tour .status { display: none; } }
+@media (max-width: 720px) {
+  .brand b { font-size: 19px; }
+  .brand span { display: none; }
+  .btn .lbl { display: none; }
+  .actions { gap: 5px; }
+  .actions > .btn { padding: 8px 8px; min-height: 36px; }
+  .tourbar h3 { font-size: 20px; } .tourbar p { font-size: 12.5px; }
+  .card { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; max-width: none; top: auto; max-height: 58%; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+  .card h2 { font-size: 22px; }
+  .arbar { top: auto; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+  body.ar.card-open .arbar { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .toggle span::after { transition: none; } }
+</style></head><body>
+
+<div id="stage"></div>
+
+<div id="ui">
+  <div id="loading">Loading pod model…</div>
+
+  <header class="top">
+    <div class="brand"><b>MINELOOP</b><span>Interactive pod · concept model, not to scale</span></div>
+    <div class="actions hit">
+      <button class="btn" id="btnTour" type="button" title="Guided tour of the whole process">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 4.5v15l12-7.5z"/></svg><span class="lbl">Tour</span></button>
+      <button class="btn" id="btnSet" type="button" title="Edit the pod's limits and targets">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span class="lbl">Setpoints</span></button>
+      <button class="btn" id="btnFault" type="button" title="Inject faults and watch the pod react">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h0"/></svg><span class="lbl">Faults</span></button>
+      <button class="btn primary desk-only" id="btnAR" type="button" title="Place the pod on a real table">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="m3 7 9 5 9-5M12 12v10"/></svg><span class="lbl">View in AR</span></button>
+      <button class="btn" id="btnLabels" type="button" aria-pressed="true" title="Show or hide zone labels">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><span class="lbl">Labels</span></button>
+      <button class="btn desk-only" id="btnReset" type="button" title="Back to the full site view">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Full site</span></button>
+      <button class="btn ar-only" id="btnExitAR" type="button">Exit AR</button>
+    </div>
+  </header>
+
+  <div class="status" id="status" aria-live="polite"></div>
+
+  <div class="arbar ar-only hit" id="arbar" hidden>
+    <button class="btn" id="arSmaller" type="button" aria-label="Smaller">−</button>
+    <button class="btn" id="arBigger" type="button" aria-label="Bigger">+</button>
+    <button class="btn" id="arRotL" type="button" aria-label="Rotate left">⟲</button>
+    <button class="btn" id="arRotR" type="button" aria-label="Rotate right">⟳</button>
+    <button class="btn" id="arMove" type="button">Move</button>
+  </div>
+
+  <div class="hint" id="hint" hidden></div>
+  <aside class="card hit" id="card" hidden></aside>
+  <nav class="rail hit" id="rail" aria-label="Zones"></nav>
+  <section class="tourbar hit" id="tourbar" hidden aria-live="polite">
+    <span class="tag" id="tbTag"></span>
+    <h3 id="tbTitle"></h3>
+    <div class="tb-ctrl">
+      <button class="btn" id="tbPrev" type="button" aria-label="Previous step">‹</button>
+      <button class="btn" id="tbPlay" type="button" aria-label="Pause">❚❚</button>
+      <button class="btn" id="tbNext" type="button" aria-label="Next step">›</button>
+      <button class="btn" id="tbExit" type="button">End</button>
+    </div>
+    <p id="tbBody"></p>
+    <div class="tb-dots" id="tbDots"></div>
+    <div class="tb-prog"><i id="tbProg"></i></div>
+  </section>
+</div>
+
+<script src="mineloop_model.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const TEST = /[?&]test\b/.test(location.search);   // ?test: hooks for headless checks
+const $ = (s) => document.querySelector(s);
+const lerp = (a, b, t) => a + (b - a) * t, clamp01 = (t) => Math.max(0, Math.min(1, t));
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const fmt = (n) => Math.round(n).toLocaleString('en-IN');
+
+/* ---------- setpoints: every one is a placeholder until the team's test data replaces it ---------- */
+const SET = {
+  batchL: 5000,        // inlet closes when the batch total reaches this
+  bagCapL: 1250,       // slurry one bag holds (4 bags = 5,000 L)
+  moistReady: 30,      // % moisture (wet basis) at which cake is ready to mix
+  doseLo: 8, doseHi: 16, // ppm flocculant: good band
+  ntuA: 50, ntuB: 150, // grade A below ntuA, B below ntuB, else C
+  pressKN: 100,        // press target force
+  mixPass: 60,         // mix index needed for a pass (illustrative rule)
+  bagTripKg: 1620,     // load-cell trip: bag weight that closes the inlet if the float switch fails
+};
+const SET0 = { ...SET };
+const DRY = { solidsKg: 240, m0: 84, mInf: 18, tauH: 26 };   // bag drying model (placeholder physics)
+
+/* ---------- zone content ---------- */
+// Layout metres (x east 0-22, y south 0-18, z up) -> model space of the glb
+const L = (x, y, z = 0) => new THREE.Vector3(x - 11, z, y - 9);
+
+const ZONES = {
+  pit: { tag: 'Today', label: 'Settling pits', title: 'Settling pits (today)', at: L(3.5, -0.5, 1.6), view: [7, 9, 12],
+    what: 'Wash slurry from the M-sand plant settles in open pits. Today the sludge is dug out by JCB and dumped, which costs money and land.',
+    specs: ['The pit keeps recycling the bulk wash water', 'MineLoop takes only the settled sludge'] },
+  plant: { tag: 'Existing', label: 'Wash plant', title: 'M-sand wash plant', at: L(12, -6.5, 6.4), view: [10, 10, 14],
+    what: 'The existing plant washes crushed sand. Its slurry runs to the settling pits.',
+    specs: ['Grade A water from the pod returns here as wash water'] },
+  Z1: { tag: 'Z1', label: 'Sludge feed', title: 'Feed & flocculation tank', zone: 'ZONE_Z1_Tank', view: [3.9, 2.9, 4.3], focus: L(2.2, 6.9, 1.7), panel: 'feed',
+    what: 'Sludge from the pit is pumped through a motorised inlet valve and a flow meter into a 500 L tank. Flocculant from the dosing drum is mixed in by the stirrer so fine particles clump and drain fast in the bags.',
+    specs: ['500 L HDPE tank on a stand, stirrer, ultrasonic level sensor', 'Inlet valve closes at the batch limit or when no bag is free', 'Flocculant drum with dosing pump; dose checked by a weekly test kit', 'About 1 t of dry sludge a day (team estimate)'] },
+  Z2: { tag: 'Z2', label: 'Geobags', title: 'Geotextile dewatering bags', zone: 'ZONE_Z2_Bags', view: [5.6, 4.6, 5.6], focus: L(2.6, 11, 0.9), panel: 'bags',
+    what: 'Four bags hang on a rack over a drained slab. Water seeps out through the fabric and the solids stay inside as cake. A float switch moves filling to the next bag.',
+    specs: ['Each bag hangs from two load cells: weight falls as water drains', 'A moisture probe in each bag reads the cake directly', 'Both readings together say when the cake is ready to mix', 'Filtered water drains to the grader'] },
+  Z3: { tag: 'Z3', label: 'Water grader', title: 'Water grader', zone: 'ZONE_Z3_Grader', view: [3.2, 2.4, 3.2], focus: L(2.6, 14.6, 0.6), panel: 'grade',
+    what: 'A turbidity sensor reads how clear the drained water is. A motorised 3-way valve then sends it where it is most useful.',
+    specs: ['Grade A (clearest): back to the plant as wash water', 'Grade B: dust spray and block curing', 'Grade C: back to the bags for another pass'] },
+  Z4: { tag: 'Z4', label: 'Cake bay', title: 'Cake bay', zone: 'ZONE_Z4_Cake', view: [5, 5, 6], roof: ['Cake_roof'],
+    what: 'Ready cake is stored under a roof, then taken to the mixer by wheelbarrow.',
+    specs: ['Roofed bay keeps rain off the cake', 'Cake arrives here when a bag reads ready (send it from Z2)'] },
+  Z5: { tag: 'Z5', label: 'Smart press', title: 'Smart press', zone: 'ZONE_Z5_Press', view: [-1.7, 1.9, 3.5], focus: L(14.8, 5.2, 0.95), roof: ['Shed_roof', 'Solar_'], panel: 'press',
+    what: 'Cake is mixed with quarry dust and cement and weighed by a load cell. The feed box fills a four-cavity mould, the hydraulic cylinder presses to a target force, and a density check decides pass or reject. Every block is logged.',
+    specs: ['Representative 4-column hydraulic press (to be replaced by the team’s CAD)', 'Four 230 × 110 mm blocks per stroke, pressed to about 75 mm', 'Load cell between rod and platen; stack light shows pass / reject', 'Solar panels on the shed roof, battery box'] },
+  Z6: { tag: 'Z6', label: 'Curing', title: 'Curing yard', zone: 'ZONE_Z6_Curing', view: [6, 6, 8],
+    what: 'Fresh blocks cure on a slab under a mist line fed with recovered grade B water.',
+    specs: ['Mist line runs on recovered water', 'Blocks stacked in rows while they gain strength'] },
+  Z7: { tag: 'Z7', label: 'Stock & dispatch', title: 'Stock & dispatch', zone: 'ZONE_Z7_Stock', view: [7, 6, 9],
+    what: 'Cured blocks are stacked on pallets and leave by truck on the road the plant already uses.',
+    specs: ['Pallets of finished blocks', 'About 7,500 blocks a month (team financial model estimate)'] },
+};
+const ORDER = ['pit', 'Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'plant'];
+
+/* ---------- renderer / scene ---------- */
+const stage = $('#stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const COARSE = matchMedia('(pointer: coarse)').matches;          // phones and tablets
+const PR_MAX = Math.min(devicePixelRatio, COARSE ? 1.5 : 2);
+let pixelRatio = PR_MAX;
+renderer.setPixelRatio(pixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.xr.enabled = true;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.05, 400);
+const HOME = { pos: new THREE.Vector3(20, 25, 33), target: new THREE.Vector3(-1.7, 0, 0) };
+const homeFit = () => Math.min(2.2, Math.max(1, 1.25 / (innerWidth / innerHeight)));
+camera.position.copy(HOME.pos).multiplyScalar(homeFit());
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(HOME.target);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 1.5; controls.maxDistance = 90;
+
+scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x5a4a38, 0.9));
+const sun = new THREE.DirectionalLight(0xfff3e0, 2.3);
+sun.position.set(-14, 30, 18); sun.castShadow = true;
+sun.shadow.mapSize.set(COARSE ? 1024 : 2048, COARSE ? 1024 : 2048);
+Object.assign(sun.shadow.camera, { left: -26, right: 26, top: 26, bottom: -26, near: 1, far: 90 });
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+
+// world = what gets placed on the table in AR. model = glb recentred so the plinth bottom sits at y=0.
+const world = new THREE.Group(); scene.add(world);
+const model = new THREE.Group(); world.add(model);
+world.add(sun); world.add(sun.target);
+const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.ShadowMaterial({ opacity: 0.28 }));
+shadowCatcher.rotation.x = -Math.PI / 2; shadowCatcher.position.y = 0.002; shadowCatcher.receiveShadow = true; shadowCatcher.visible = false;
+world.add(shadowCatcher);
+
+/* ---------- load model ---------- */
+let site; const pickables = [];
+const N = {};          // nodes by name
+const labels = new THREE.Group();
+const roofParts = {};  // name -> {mesh, y0}
+
+function loadModel(onLoad, onError) {
+  const loader = new GLTFLoader();
+  if (window.MINELOOP_GLB_B64) {
+    const bin = atob(window.MINELOOP_GLB_B64), buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    loader.parse(buf.buffer, '', onLoad, onError);
+  } else loader.load('mineloop_ar.glb', onLoad, undefined, onError);
+}
+loadModel((gltf) => {
+  site = gltf.scene;
+  site.traverse((o) => {
+    if (o.name) N[o.name] = o;
+    if (o.isMesh) {
+      o.castShadow = true; o.receiveShadow = true;
+      if (o.material && o.material.name === 'glass') { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = 0.55; }
+      pickables.push(o);
+    }
+  });
+  site.position.set(-1.25, 0.6, 6);   // base plinth spans layout x -2..26.5, y -13..19, 0.6 m deep
+  model.add(site);
+  site.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(site.matrixWorld).invert();
+  for (const [id, z] of Object.entries(ZONES)) {
+    if (z.zone && N[z.zone]) {
+      const b = new THREE.Box3().setFromObject(N[z.zone]).applyMatrix4(inv);
+      z.box = b; z.center = b.getCenter(new THREE.Vector3());
+      z.at = z.at || new THREE.Vector3(z.center.x, b.max.y + 0.9, z.center.z);
+      N[z.zone].userData.zoneId = id;
+    }
+  }
+  ZONES.pit.box = new THREE.Box3(L(-0.6, -5.6, 0), L(7.6, 4.1, 0.6)); ZONES.pit.center = L(3.5, -0.75, 0);
+  ZONES.plant.box = new THREE.Box3(L(6, -13, 0), L(22, -3.6, 5)); ZONES.plant.center = L(13, -7.5, 0);
+  for (const [name, o] of Object.entries(N)) {
+    if (o.isMesh && (name === 'Shed_roof' || name === 'Cake_roof' || name.startsWith('Solar_'))) {
+      o.material = o.material.clone(); o.material.transparent = true;
+      roofParts[name] = { mesh: o, y0: o.position.y, lift: 0 };
+    }
+  }
+  buildLabels(); site.add(labels);
+  setupFlows(); setupBags(); setupTank(); setupGrader(); setupPress(); setupScreens();
+  buildRail();
+  $('#loading').remove();
+  if (TEST) window.__ml.ready = true;
+}, (err) => { $('#loading').textContent = 'Could not load the model file.'; console.error(err); });
+
+/* ---------- canvas helpers ---------- */
+function roundRect(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function textSprite(draw, w, h, worldH) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.renderOrder = 11; sp.center.set(0.5, 0); sp.scale.set(worldH * w / h, worldH, 1);
+  sp.userData.redraw = (...a) => { const g = c.getContext('2d'); g.clearRect(0, 0, w, h); draw(g, w, h, ...a); tex.needsUpdate = true; };
+  return sp;
+}
+
+/* ---------- labels (sprites, work in AR too) ---------- */
+function labelSprite(tag, text) {
+  const s = 3, c = document.createElement('canvas'), g = c.getContext('2d');
+  const F = (w) => `${w} ${30 * s}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+  g.font = F(700); const tagW = g.measureText(tag.toUpperCase()).width;
+  g.font = F(600); const txtW = g.measureText(text).width;
+  const pad = 14 * s, gap = 10 * s, h = 48 * s, w = pad * 2 + tagW + gap + txtW;
+  c.width = Math.ceil(w); c.height = h + 14 * s;
+  g.fillStyle = 'rgba(16,21,25,0.9)'; g.strokeStyle = '#3fe08c'; g.lineWidth = 2 * s;
+  roundRect(g, s, s, w - 2 * s, h - 2 * s, 8 * s); g.fill(); g.stroke();
+  g.beginPath(); g.moveTo(w / 2 - 8 * s, h - s); g.lineTo(w / 2, h + 12 * s); g.lineTo(w / 2 + 8 * s, h - s); g.closePath(); g.fillStyle = '#3fe08c'; g.fill();
+  g.textBaseline = 'middle';
+  g.font = F(700); g.fillStyle = '#3fe08c'; g.fillText(tag.toUpperCase(), pad, h / 2 + s);
+  g.font = F(600); g.fillStyle = '#eef3ef'; g.fillText(text, pad + tagW + gap, h / 2 + s);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  sp.renderOrder = 10; sp.center.set(0.5, 0); sp.userData.aspect = c.width / c.height;
+  return sp;
+}
+let labelScale = 1;
+function buildLabels() {
+  labels.clear();
+  for (const id of ORDER) {
+    const z = ZONES[id]; const sp = labelSprite(z.tag, z.label);
+    sp.position.copy(z.at); sp.userData.zoneId = id; labels.add(sp);
+  }
+}
+document.fonts && document.fonts.ready.then(() => { if (site) buildLabels(); });
+
+/* ---------- selection highlight ---------- */
+const bracketMat = new THREE.MeshBasicMaterial({ color: 0x3fe08c, transparent: true, opacity: 0.9, depthWrite: false });
+const bracket = new THREE.Group(); bracket.visible = false;
+function setBracket(box) {
+  bracket.clear();
+  const m = 0.45, x0 = box.min.x - m, x1 = box.max.x + m, z0 = box.min.z - m, z1 = box.max.z + m;
+  const len = Math.min(2.2, (x1 - x0) / 3, (z1 - z0) / 3), t = 0.14, y = 0.2;
+  const bar = (cx, cz, sx, sz) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.05, sz), bracketMat); b.position.set(cx, y, cz); b.renderOrder = 5; bracket.add(b); };
+  for (const [x, dx] of [[x0, 1], [x1, -1]]) for (const [z, dz] of [[z0, 1], [z1, -1]]) { bar(x + dx * len / 2, z, len, t); bar(x, z + dz * len / 2, t, len); }
+  bracket.visible = true;
+}
+
+/* ---------- camera fly ---------- */
+let fly = null;
+function flyTo(pos, target, dur = 1.0) {
+  if (renderer.xr.isPresenting) return;
+  fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: target.clone(), t: 0, dur: REDUCED ? 0.01 : dur };
+}
+
+/* =====================================================================
+   FLOW BEADS along the pipe centre-lines
+   ===================================================================== */
+const FLOWS = {};
+class Flow {
+  constructor(pts, color, n, speed, r = 0.075) {
+    this.pts = pts.map((p) => new THREE.Vector3(...p)); this.cum = [0];
+    for (let i = 1; i < this.pts.length; i++) this.cum.push(this.cum[i - 1] + this.pts[i].distanceTo(this.pts[i - 1]));
+    this.len = this.cum[this.cum.length - 1]; this.n = n; this.speed = speed; this.off = 0; this.on = false; this.k = 0;
+    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.4 });
+    this.mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 10, 8), mat, n); this.mesh.frustumCulled = false; this.mesh.visible = false;
+    this.m = new THREE.Matrix4(); this.p = new THREE.Vector3();
+  }
+  at(d, out) {
+    let i = 1; while (i < this.cum.length - 1 && this.cum[i] < d) i++;
+    const t = (d - this.cum[i - 1]) / Math.max(1e-6, this.cum[i] - this.cum[i - 1]);
+    return out.lerpVectors(this.pts[i - 1], this.pts[i], clamp01(t));
+  }
+  update(dt) {
+    this.k += ((this.on ? 1 : 0) - this.k) * Math.min(1, dt * 4);
+    this.mesh.visible = this.k > 0.02; if (!this.mesh.visible) return;
+    this.off = (this.off + this.speed * dt) % this.len;
+    for (let i = 0; i < this.n; i++) {
+      const d = (this.off + (i / this.n) * this.len) % this.len;
+      this.at(d, this.p); this.m.makeScale(this.k, this.k, this.k).setPosition(this.p); this.mesh.setMatrixAt(i, this.m);
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+}
+function setupFlows() {
+  const P = window.MINELOOP_PATHS || {};
+  const def = { sludgeIn: ['Pipe_sludge_in', 0xc98a4b, 9, 1.6], tankBags: ['Pipe_tank_bags', 0xc98a4b, 9, 1.4], dose: ['Pipe_dose', 0x9ccf6a, 6, 0.8, 0.045],
+    drain: ['Pipe_drain', 0x3d9be8, 4, 0.7], toValve: ['Pipe_to_valve', 0x3d9be8, 3, 0.7], A: ['Pipe_A_to_plant', 0x3d9be8, 22, 2.6],
+    B: ['Pipe_B_to_curing', 0x9fd3ff, 16, 2.2], C: ['Pipe_C_return', 0x9a6a3a, 14, 2.0], plant: ['Pipe_plant_to_pit', 0xc98a4b, 6, 1.2] };
+  for (const [k, [name, col, n, sp, r]] of Object.entries(def)) {
+    if (!P[name]) continue;
+    const f = new Flow(P[name], col, n, sp, r); FLOWS[k] = f; site.add(f.mesh);
+  }
+  if (FLOWS.plant) FLOWS.plant.on = true;
+}
+
+/* =====================================================================
+   SHARED POD STATE
+   ===================================================================== */
+const S = {
+  clockMin: 0,                // demo clock (minutes since page load, sped up during demos)
+  events: [],
+  bags: [                      // fill 0..1 (volume of slurry), ageH since filled (drying), state
+    { fill: 1, ageH: 52 }, { fill: 1, ageH: 18 }, { fill: 0, ageH: 0 }, { fill: 0, ageH: 0 }],
+  openBag: null,
+  dose: 12, tankOpen: false, tankLevel: 0.55,
+  batch: { running: false, total: 0, bag: -1, inlet: 'closed', reason: '' },
+  water: { running: false, t: 0, ntu: 0, grade: '-', litres: { A: 0, B: 0, C: 0 }, trace: [] },
+  cakeKg: 400, cakeMoist: 28, mixKg: 200, mixT: 0,
+  faults: { dose: false, float: false },
+};
+function logEvent(text, cls = '') {
+  const h = new Date(); const t = h.toTimeString().slice(0, 8);
+  S.events.unshift({ t, text, cls }); S.events = S.events.slice(0, 12);
+  renderEvents();
+}
+const moistOf = (b) => (b.fill < 0.98 ? null : DRY.mInf + (DRY.m0 - DRY.mInf) * Math.exp(-b.ageH / DRY.tauH));
+const weightOf = (b) => { const m = moistOf(b); return (m == null || b.fill > 1.001) ? (b.fill * SET.bagCapL * 1.2) : DRY.solidsKg / (1 - m / 100); };
+const etaOf = (b) => { const m = moistOf(b); if (m == null) return null; if (m <= SET.moistReady) return 0; if (SET.moistReady <= DRY.mInf) return Infinity; return DRY.tauH * Math.log((m - DRY.mInf) / (SET.moistReady - DRY.mInf)); };
+function bagState(b, i) {
+  if (S.batch.running && S.batch.bag === i) return ['Filling', 'warn'];
+  if (b.fill < 0.02) return ['Empty', ''];
+  if (b.fill < 0.98) return ['Part filled', 'warn'];
+  return moistOf(b) <= SET.moistReady ? ['Ready for mixer', 'ok'] : ['Draining', 'warn'];
+}
+
+/* =====================================================================
+   Z2 GEOBAGS: shape follows fill and drying, open to read moisture
+   ===================================================================== */
+const BAG = [];
+const WET = new THREE.Color('#8a7d6c'), DRYC = new THREE.Color('#e2dfd6'), CAKE_WET = new THREE.Color('#4f3f2f'), CAKE_DRY = new THREE.Color('#9a8670');
+function weaveTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 128; i += 4) { g.fillStyle = i % 8 ? 'rgba(0,0,0,0.07)' : 'rgba(0,0,0,0.13)'; g.fillRect(i, 0, 2, 128); g.fillRect(0, i, 128, 2); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(18, 9); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function setupBags() {
+  const weave = weaveTexture();
+  for (let i = 0; i < 4; i++) {
+    const m = N['Geobag_' + i]; if (!m) continue;
+    m.material = m.material.clone(); m.material.map = weave; m.material.roughness = 0.95;
+    m.userData.bag = i;
+    const full = m.scale.clone(), top = m.position.y + full.y * 0.86;
+    const cake = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), new THREE.MeshStandardMaterial({ color: CAKE_WET.clone(), roughness: 1 }));
+    cake.visible = false; m.parent.add(cake);
+    const tag = textSprite(drawBagTag, 250, 112, 0.3); tag.visible = false; m.parent.add(tag);
+    const probe = [N['Bag_probe_' + i], N['Bag_probe_' + i + '_head']].filter(Boolean);
+    BAG.push({ m, full, top, cake, tag, probe, shown: { fill: S.bags[i].fill }, last: '' });
+  }
+}
+function drawBagTag(g, w, h, i, b) {
+  const [st, cls] = bagState(b, i); const m = moistOf(b);
+  const col = cls === 'ok' ? '#3fe08c' : cls === 'warn' ? '#f2b33d' : '#98a6a0';
+  roundRect(g, 3, 3, w - 6, h - 6, 14); g.fillStyle = 'rgba(16,21,25,0.92)'; g.fill(); g.lineWidth = 4; g.strokeStyle = col; g.stroke();
+  g.textBaseline = 'middle';
+  g.fillStyle = '#98a6a0'; g.font = '700 30px "Barlow Condensed", sans-serif'; g.fillText('BAG ' + (i + 1), 18, 34);
+  g.fillStyle = '#eef3ef'; g.font = '500 32px "IBM Plex Mono", monospace'; g.textAlign = 'right';
+  g.fillText(m == null ? (b.fill < 0.02 ? 'empty' : Math.round(b.fill * 100) + '%') : m.toFixed(0) + '%', w - 18, 34); g.textAlign = 'left';
+  g.fillStyle = col; g.font = '700 28px "Barlow Condensed", sans-serif'; g.fillText(st.toUpperCase(), 18, 80);
+}
+const EMPTY_SC = new THREE.Vector3(0.06, 0.5, 1.05);
+function updateBags(dt) {
+  const showTags = selected === 'Z2';
+  BAG.forEach((B, i) => {
+    const b = S.bags[i];
+    B.shown.fill += (b.fill - B.shown.fill) * Math.min(1, dt * 5);
+    const f = B.shown.fill, m = moistOf(b);
+    const shrink = m == null ? 1 : 0.62 + 0.38 * Math.pow(weightOf(b) / (DRY.solidsKg / (1 - DRY.m0 / 100)), 0.7);
+    const sc = new THREE.Vector3(lerp(EMPTY_SC.x, B.full.x * shrink, f), lerp(EMPTY_SC.y, B.full.y * (0.55 + 0.45 * shrink), f), lerp(EMPTY_SC.z, B.full.z, f));
+    B.m.scale.copy(sc); B.m.position.y = B.top - sc.y * 0.86;
+    const dryness = m == null ? (f > 0.05 ? 0 : 1) : clamp01((DRY.m0 - m) / (DRY.m0 - DRY.mInf));
+    B.m.material.color.copy(WET).lerp(DRYC, dryness);
+    const open = S.openBag === i && f > 0.05;
+    B.m.material.transparent = open; B.m.material.opacity = open ? 0.22 : 1; B.m.material.depthWrite = !open;
+    B.cake.visible = open; B.cake.scale.copy(sc).multiplyScalar(0.9); B.cake.position.copy(B.m.position); B.cake.position.y -= sc.y * 0.06;
+    B.cake.material.color.copy(CAKE_WET).lerp(CAKE_DRY, dryness);
+    for (const p of B.probe) p.visible = f > 0.5;
+    B.tag.visible = showTags; B.tag.position.set(B.m.position.x, B.top + 0.45 + (i % 2) * 0.42, B.m.position.z);
+    if (showTags) { const d = camLocalPos ? camLocalPos.distanceTo(B.tag.position) : 8; const hh = 0.3 * Math.min(2.2, Math.max(0.7, d / 7)) * labelScale; B.tag.scale.set(hh * 250 / 112, hh, 1); }
+    const key = [i, b.fill.toFixed(2), m == null ? '' : m.toFixed(0), bagState(b, i)[0]].join('|');
+    if (showTags && key !== B.last) { B.tag.userData.redraw(i, b); B.last = key; }
+  });
+}
+let ffwd = 0;
+function fastForward(h) { ffwd += h; }
+function tickDrying(dt) {
+  if (ffwd > 0) { const step = Math.min(ffwd, dt * 8); ffwd -= step; for (const b of S.bags) if (b.fill >= 0.98) b.ageH += step; }
+  for (const [i, b] of S.bags.entries()) {
+    const m = moistOf(b);
+    if (m != null && m <= SET.moistReady && !b.readyLogged) { b.readyLogged = true; logEvent(`Bag ${i + 1} cake is ready for the mixer (${m.toFixed(0)}% moisture).`, 'ok'); }
+  }
+}
+let emptying = null;
+function sendToMixer(i) {
+  const b = S.bags[i], m = moistOf(b); if (m == null) return;
+  if (m > SET.moistReady) { logEvent(`Blocked: bag ${i + 1} is at ${m.toFixed(0)}% moisture (needs ≤ ${SET.moistReady}%). The cake stays in the bag.`, 'bad'); return; }
+  S.cakeKg += DRY.solidsKg / (1 - m / 100); S.cakeMoist = m;
+  b.fill = 0; b.ageH = 0; b.readyLogged = false; if (S.openBag === i) S.openBag = null;
+  const h = N.Cake_heap_1; if (h) { h.userData.s = Math.min(1.7, (h.userData.s || 1) + 0.14); h.scale.setScalar(h.userData.s); }
+  logEvent(`Bag ${i + 1} emptied to the cake bay. Bag is free for the next batch.`);
+}
+
+/* =====================================================================
+   Z1 FEED & FLOCCULATION TANK: cutaway, dose slider, settle test, batch with interlocks
+   ===================================================================== */
+const TANK = { c: L(2, 7.5, 1.6), r: 0.43, h: 0.98 };
+let tankFx = null;
+function setupTank() {
+  const t = N.Sludge_tank; if (!t) return;
+  t.material = t.material.clone(); t.material.transparent = true;
+  const g = new THREE.Group(); g.position.copy(TANK.c); g.position.y += 0.03; g.visible = false; site.add(g);
+  const cyl = (r, col, op) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1, 36, 1, false), new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: op, roughness: 0.3, depthWrite: false })); m.geometry.translate(0, 0.5, 0); g.add(m); return m; };
+  const liquid = cyl(TANK.r, 0x8a6a48, 0.7), clear = cyl(TANK.r * 0.995, 0x7fb0cf, 0.35), sediment = cyl(TANK.r * 0.99, 0x4a3726, 1);
+  sediment.material.depthWrite = true; sediment.material.transparent = false;
+  const NP = 260, flocs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.011, 0), new THREE.MeshStandardMaterial({ color: 0x5a4330, roughness: 1 }), NP);
+  flocs.frustumCulled = false; g.add(flocs);
+  const P = [];
+  for (let i = 0; i < NP; i++) P.push({ x: 0, y: 0, z: 0, a: Math.random() * 6.28, r: Math.random(), s: 0.6 + Math.random() * 0.8, settled: false });
+  tankFx = { g, liquid, clear, sediment, flocs, P, t: 0, mixing: 0, settling: false, clearFrac: 0, settledFrac: 0, m: new THREE.Matrix4() };
+  mixTank();
+}
+function doseQuality() {
+  const d = S.faults.dose ? 0 : S.dose;
+  if (d < SET.doseLo) return { name: 'Under-dosed', cls: 'bad', grow: 0.25 + 0.35 * d / SET.doseLo, v: 0.01 + 0.03 * d / SET.doseLo, haze: 0.8, ntu: 220 - 90 * d / SET.doseLo };
+  if (d <= SET.doseHi) return { name: 'Good floc', cls: 'ok', grow: 1, v: 0.12, haze: 0.12, ntu: 30 };
+  return { name: 'Over-dosed', cls: 'warn', grow: 0.85, v: Math.max(0.04, 0.08 - 0.003 * (d - SET.doseHi)), haze: 0.45, ntu: 70 + 4 * (d - SET.doseHi) };
+}
+function mixTank() {
+  if (!tankFx) return;
+  for (const p of tankFx.P) { p.settled = false; p.a = Math.random() * 6.28; p.r = Math.sqrt(Math.random()) * (TANK.r - 0.03); p.y = 0.05 + Math.random() * (TANK.h * S.tankLevel - 0.08); }
+  tankFx.mixing = 1.6; tankFx.settling = true; tankFx.t = 0;
+}
+function updateTank(dt) {
+  const fx = tankFx; if (!fx) return;
+  const t = N.Sludge_tank, open = S.tankOpen;
+  t.material.opacity += ((open ? 0.16 : 1) - t.material.opacity) * Math.min(1, dt * 6);
+  t.material.transparent = t.material.opacity < 0.99; t.material.depthWrite = !t.material.transparent;
+  if (N.Tank_lid) N.Tank_lid.visible = !open;
+  fx.g.visible = open || t.material.opacity < 0.95;
+  const stir = N.Tank_stirrer; const stirring = fx.mixing > 0 || S.batch.running;
+  if (stir) stir.rotation.y += dt * (stirring ? 12 : 0);
+  const q = doseQuality(), H = TANK.h * Math.max(0.05, S.tankLevel);
+  if (fx.mixing > 0) fx.mixing -= dt;
+  if (fx.settling) fx.t += dt;
+  let suspended = 0; const ys = [];
+  fx.P.forEach((p, i) => {
+    if (stirring) { p.a += dt * (1.5 + p.r * 2); p.y += Math.sin(fx.t * 3 + i) * dt * 0.08; if (p.y < 0.05 || p.y > H - 0.02) p.y = 0.05 + Math.random() * (H - 0.08); p.settled = false; }
+    else if (!p.settled) { p.y -= q.v * p.s * dt * (0.7 + 0.3 * Math.sin(i)); p.a += dt * 0.15; }
+    const sedTop = 0.02 + 0.13 * fx.settledFrac;
+    if (!stirring && !p.settled && p.y <= sedTop) { p.settled = true; }
+    if (p.y > H - 0.02) p.y = H - 0.02;
+    const sc = p.settled ? 0 : (0.6 + q.grow * 2.6) * p.s;
+    if (!p.settled) { suspended++; ys.push(p.y); }
+    fx.m.makeScale(sc, sc, sc).setPosition(Math.cos(p.a) * p.r, p.y, Math.sin(p.a) * p.r); fx.flocs.setMatrixAt(i, fx.m);
+  });
+  fx.flocs.instanceMatrix.needsUpdate = true;
+  ys.sort((a, b) => a - b); const topY = ys.length ? ys[Math.floor(ys.length * 0.85)] : 0;   // top of the settling cloud
+  fx.settledFrac = 1 - suspended / fx.P.length;
+  fx.clearFrac = stirring ? 0 : clamp01((H - Math.max(topY, 0.02 + 0.13 * fx.settledFrac)) / H) * (1 - q.haze * 0.6);
+  fx.liquid.scale.y = H; fx.liquid.material.opacity = 0.25 + 0.55 * (stirring ? 1 : Math.max(q.haze, 1 - fx.settledFrac));
+  const sed = 0.02 + 0.13 * fx.settledFrac; fx.sediment.scale.y = sed;
+  const ch = H * fx.clearFrac; fx.clear.visible = ch > 0.01; fx.clear.scale.y = Math.max(0.001, ch); fx.clear.position.y = H - ch;
+  fx.clear.material.opacity = 0.18 + 0.3 * q.haze;
+}
+
+// batch: pump -> inlet valve -> flow meter -> tank -> bags, float switch per bag, batch limit closes the inlet
+const PUMP_LPS = 250;     // demo speed (a real feed pump is far slower); 5,000 L takes about 20 s here
+function nextBag() { return S.bags.findIndex((b) => b.fill < 0.98); }
+function startBatch() {
+  const B = S.batch; if (B.running) return;
+  const i = nextBag();
+  if (i < 0) { B.reason = 'All bags are full. Send ready cake to the mixer first.'; logEvent('Batch not started: all bags full.', 'bad'); renderPanel(); return; }
+  Object.assign(B, { running: true, total: 0, bag: i, inlet: 'open', reason: '' });
+  logEvent(`Batch started. Inlet open, filling bag ${i + 1}. Limit ${fmt(SET.batchL)} L.`);
+  renderPanel();
+}
+function stopBatch(reason, cls = '') {
+  const B = S.batch; if (!B.running) return;
+  B.running = false; B.inlet = 'closed'; B.reason = reason; B.bag = -1;
+  logEvent(reason, cls); renderPanel();
+}
+function updateBatch(dt) {
+  const B = S.batch;
+  if (FLOWS.sludgeIn) FLOWS.sludgeIn.on = B.running;
+  if (FLOWS.tankBags) FLOWS.tankBags.on = B.running;
+  if (FLOWS.dose) FLOWS.dose.on = B.running && !S.faults.dose;
+  const act = N.Inlet_actuator;
+  if (act) { if (!act.userData.m) { act.material = act.material.clone(); act.userData.m = 1; } const c = B.running ? 0x3fe08c : 0xff5a4a; act.material.color.setHex(c); act.material.emissive.setHex(c); act.material.emissiveIntensity = 0.8; }
+  S.tankLevel += ((B.running ? 0.78 : 0.5) - S.tankLevel) * Math.min(1, dt * (B.running ? 1.2 : 0.4));
+  if (!B.running) return;
+  const add = Math.min(PUMP_LPS * dt, SET.batchL - B.total);
+  B.total += add;
+  const bag = S.bags[B.bag];
+  bag.fill = Math.min(S.faults.float ? 1.2 : 1, bag.fill + add / SET.bagCapL);
+  if (S.faults.float && bag.fill >= 0.999) {          // float switch stuck: only the load cells can stop it
+    const w = weightOf(bag);
+    if (w > SET.bagTripKg) {
+      const i = B.bag; stopBatch(`Load cells: bag ${i + 1} reached the ${fmt(SET.bagTripKg)} kg trip weight. Float switch did not trip, so the inlet was closed by the load cells.`, 'bad');
+      bag.fill = 1; bag.ageH = 0; bag.readyLogged = false; startDrain();
+    }
+    return;
+  }
+  if (bag.fill >= 0.999) {
+    bag.fill = 1; bag.ageH = 0; bag.readyLogged = false; startDrain();
+    logEvent(`Float switch: bag ${B.bag + 1} full.`);
+    const n = nextBag();
+    if (B.total >= SET.batchL - 0.5) return stopBatch(`Batch limit ${fmt(SET.batchL)} L reached. Inlet closed.`, 'ok');
+    if (n < 0) return stopBatch(`All bags full at ${fmt(B.total)} L. Inlet closed before the limit.`, 'bad');
+    B.bag = n; logEvent(`Filling moved to bag ${n + 1}.`);
+  }
+  if (B.total >= SET.batchL - 0.5) stopBatch(`Batch limit ${fmt(SET.batchL)} L reached. Inlet closed with bag ${B.bag + 1} part filled.`, 'ok');
+}
+
+/* =====================================================================
+   Z3 WATER GRADER: turbidity -> valve A / B / C
+   ===================================================================== */
+const VALVE_ANG = { A: 0, B: Math.PI / 3, C: 2 * Math.PI / 3 };
+let drainT = 0;
+function startDrain() { drainT = 18; }   // a freshly filled bag drains for a while; grading runs on that water
+function setupGrader() {
+  const w = N.Grader_water; if (w) { w.material = w.material.clone(); }
+}
+function startGrading() { const W = S.water; W.running = true; W.t = 0; W.trace = []; W.alarm = false; logEvent('Water grading run started on drained water.'); renderPanel(); }
+function updateGrader(dt) {
+  const W = S.water;
+  if (drainT > 0) { drainT -= dt; if (!W.running && drainT > 0) { W.running = true; W.t = 0; W.trace = []; W.alarm = false; } }
+  if (FLOWS.drain) FLOWS.drain.on = W.running;
+  if (FLOWS.toValve) FLOWS.toValve.on = W.running;
+  if (W.running) {
+    W.t += dt;
+    const q = doseQuality(), peak = 380, floor = q.ntu;
+    W.ntu = floor + (peak - floor) * Math.exp(-W.t / 3.2) + (Math.random() - 0.5) * 4;
+    W.grade = W.ntu < SET.ntuA ? 'A' : W.ntu < SET.ntuB ? 'B' : 'C';
+    if (W.t > 6 && W.grade === 'C' && !W.alarm) { W.alarm = true; logEvent(`Alarm: water still at ${W.ntu.toFixed(0)} NTU. Sent back to the bags (C). Check the flocculant dosing.`, 'bad'); }
+    W.litres[W.grade] += 40 * dt;
+    W.trace.push(W.ntu); if (W.trace.length > 240) W.trace.shift();
+    if (W.t > 16 && drainT <= 0) { W.running = false; logEvent(`Grading run done. A ${fmt(W.litres.A)} L · B ${fmt(W.litres.B)} L · C ${fmt(W.litres.C)} L.`); renderPanel(); }
+  }
+  for (const g of ['A', 'B', 'C']) if (FLOWS[g]) FLOWS[g].on = W.running && W.grade === g;
+  const v = N.Valve_3way;
+  if (v && W.grade !== '-') { const target = VALVE_ANG[W.grade]; v.rotation.y += (target - v.rotation.y) * Math.min(1, dt * 5); }
+  const gw = N.Grader_water;
+  if (gw) { const k = clamp01((W.ntu - 30) / 300); gw.material.color.set('#2a72ad').lerp(new THREE.Color('#7a5a3a'), W.running ? k : 0); }
+}
+
+/* =====================================================================
+   Z5 SMART PRESS (representative press; values are placeholders)
+   ===================================================================== */
+const PR = { cx: 14.8, cy: 5.0, table: 0.75, mouldH: 0.14, block: 0.075, cavity: [0.225, 0.105], gx: 0.1175, gz: 0.0575, headRest: 1.30, feedTravel: 0.42 };
+const P = { running: false, t: 0, fault: false, trace: [], peak: 0, result: null, n: 0, pass: 0, fail: 0, log: [], kept: [], spot: 0, rej: 0 };
+const MIXD = { cake: 35, cement: 10 };   // % of the batch; quarry dust is the rest
+const mixParts = () => ({ k: MIXD.cake, c: MIXD.cement, d: 100 - MIXD.cake - MIXD.cement });
+function mixIndex() {   // illustrative rule: cement adds strength, too much sludge cake and wet cake take it away
+  const { k, c, d } = mixParts(), wet = S.cakeMoist > SET.moistReady;
+  return Math.max(0, Math.min(100, 50 + 5 * (c - 8) - 1.2 * (k - 35) + 0.3 * (d - 50) - (wet ? 15 : 0)));
+}
+const densityOf = (idx) => 1.55 + 0.0058 * idx;
+function mixBatch() {
+  if (S.mixT > 0) return;
+  const need = 200 * MIXD.cake / 100;
+  if (S.cakeKg < need) { logEvent(`Not enough cake in the bay (${fmt(S.cakeKg)} kg, need ${fmt(need)} kg). Send a ready bag from Z2.`, 'bad'); return; }
+  S.cakeKg -= need; S.mixT = 3;
+  logEvent(`Mixing 200 kg: ${fmt(need)} kg cake, ${fmt(200 * mixParts().d / 100)} kg dust, ${fmt(200 * MIXD.cement / 100)} kg cement.`);
+}
+function updateMixer(dt) {
+  const mx = N.Mixer_drum, hop = N.Weigh_hopper;
+  if (S.mixT > 0) {
+    S.mixT -= dt; if (mx) mx.rotateY(dt * 9);
+    if (hop) { hop.userData.x0 = hop.userData.x0 ?? hop.position.x; hop.position.x = hop.userData.x0 + Math.sin(S.mixT * 60) * 0.01; }
+    if (S.mixT <= 0) { S.mixKg = 200; if (hop) hop.position.x = hop.userData.x0; logEvent('Batch mixed and weighed: 200 kg ready for the press.', 'ok'); }
+  }
+}
+const PH = { feedIn: [0, 1.0], feedOut: [1.0, 1.8], approach: [1.8, 2.6], press: [2.6, 4.6], check: [4.6, 5.4], ret: [5.4, 6.2], strip: [6.2, 6.8], out: [6.8, 7.6], down: [7.6, 8.0], stack: [8.0, 9.0] };
+const CYCLE = 9.0;
+const MIX = new THREE.Color('#8d7a63'), BLOCKC = new THREE.Color('#a7a9a3');
+let blocks, ledMat;
+function setupPress() {
+  const pl = N.Press_platen; if (!pl) return;
+  const par = pl.parent;
+  for (const n of ['Press_platen', 'Press_jack', 'Press_loadcell', 'Press_mould', 'Press_feedbox']) if (N[n]) N[n].userData.p0 = N[n].position.clone();
+  // four blocks (one per cavity), in the press parent's space (= site space)
+  blocks = new THREE.Group(); par.add(blocks);
+  const base = L(PR.cx, PR.cy, PR.table);
+  for (const dx of [-PR.gx, PR.gx]) for (const dz of [-PR.gz, PR.gz]) {
+    const g = new THREE.BoxGeometry(PR.cavity[0] * 0.98, 1, PR.cavity[1] * 0.96); g.translate(0, 0.5, 0);
+    const b = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: MIX.clone(), roughness: 0.95 }));
+    b.castShadow = true; b.userData.off = new THREE.Vector3(dx, 0, dz); b.position.copy(base).add(b.userData.off); b.scale.y = 0.001; b.visible = false;
+    blocks.add(b);
+  }
+  const led = N.Press_LED; if (led) { ledMat = led.material.clone(); led.material = ledMat; }
+  setLED('idle');
+}
+function setLED(s) {
+  if (ledMat) { const c = { idle: '#2f3a35', run: '#f2b33d', pass: '#3fe08c', fail: '#ff5a4a' }[s]; ledMat.color.set(c); ledMat.emissive.set(c); ledMat.emissiveIntensity = s === 'idle' ? 0 : 2.5; }
+  const el = $('#pLed'); if (el) { el.dataset.s = s; el.textContent = { idle: 'Ready', run: 'Running', pass: 'Pass', fail: 'Reject' }[s]; }
+}
+function startPress() {
+  if (P.running || !blocks) return;
+  if (S.mixKg < 14) { logEvent('Press waiting: mix a new 200 kg batch first.', 'bad'); renderPanel(); return; }
+  P.mixIdx = mixIndex();
+  Object.assign(P, { running: true, t: 0, trace: [], peak: 0, result: null, curFault: P.fault });
+  P.charge = P.curFault ? 11.6 + Math.random() * 0.5 : 14.2 + Math.random() * 0.4;     // kg per stroke (4 blocks), placeholder
+  P.dens = densityOf(P.mixIdx) - (P.curFault ? 0.3 : 0) + (Math.random() - 0.5) * 0.03;
+  S.mixKg = Math.max(0, S.mixKg - P.charge);
+  for (const b of blocks.children) { b.visible = true; b.scale.y = 0.001; b.rotation.set(0, 0, 0); b.position.copy(L(PR.cx, PR.cy, PR.table)).add(b.userData.off); b.material.color.copy(MIX); }
+  setLED('run'); renderPanel();
+}
+function updatePress(dt) {
+  if (!P.running) return;
+  P.t += dt; const t = P.t;
+  const pl = N.Press_platen, rod = N.Press_jack, lc = N.Press_loadcell, mould = N.Press_mould, feed = N.Press_feedbox;
+  const loose = P.curFault ? 0.108 : PR.mouldH, packed = PR.block;
+  const contact = PR.table + loose, pressed = PR.table + packed;
+  let head = PR.headRest, h = 0, force = 0, feedK = 0, lift = 0;
+  // feed box slides over the mould and fills the cavities, then strikes off and returns
+  if (t < PH.feedIn[1]) { feedK = ease(seg(t, ...PH.feedIn)); h = loose * seg(t, 0.4, 1.0); }
+  else if (t < PH.feedOut[1]) { feedK = 1 - ease(seg(t, ...PH.feedOut)); h = loose; }
+  else h = loose;
+  if (t >= PH.approach[0] && t < PH.approach[1]) head = lerp(PR.headRest, contact, ease(seg(t, ...PH.approach)));
+  if (t >= PH.press[0] && t < PH.press[1]) {
+    const p = seg(t, ...PH.press), k = 1 - Math.pow(1 - p, 2);
+    head = lerp(contact, pressed, k); h = lerp(loose, packed, k);
+    force = SET.pressKN * (P.curFault ? 0.68 : 1.0) * Math.pow(p, 1.7) * (1 + (Math.random() - 0.5) * 0.015);
+    for (const b of blocks.children) b.material.color.copy(MIX).lerp(BLOCKC, p * (P.curFault ? 0.45 : 1));
+    P.peak = Math.max(P.peak, force);
+  }
+  if (t >= PH.check[0] && t < PH.check[1]) {
+    head = pressed; h = packed; force = P.peak * (1 - 0.02 * seg(t, ...PH.check));
+    if (!P.result && t > PH.check[0] + 0.4) { const fOk = P.peak >= SET.pressKN * 0.95, mOk = P.mixIdx >= SET.mixPass;
+      P.result = fOk && mOk ? 'pass' : 'fail'; P.reason = !fOk ? 'force below target' : !mOk ? 'weak mix' : ''; setLED(P.result); renderPanel(); }
+  }
+  if (t >= PH.ret[0] && t < PH.ret[1]) { const p = seg(t, ...PH.ret); head = lerp(pressed, PR.headRest, ease(p)); h = packed; force = P.peak * Math.max(0, 1 - p * 4); }
+  if (t >= PH.ret[1]) { h = packed; }
+  // mould strips upward, blocks slide onto the out-feed board, mould comes down, blocks go to the pallet / reject spot
+  if (t >= PH.strip[0] && t < PH.down[1]) lift = t < PH.out[1] ? ease(seg(t, ...PH.strip)) * 0.17 : (1 - ease(seg(t, ...PH.down))) * 0.17;
+  const dz = PR.headRest - head;
+  for (const n of [pl, rod, lc]) if (n) n.position.y = n.userData.p0.y - dz;
+  if (mould) mould.position.y = mould.userData.p0.y + lift;
+  if (feed) feed.position.z = feed.userData.p0.z + feedK * PR.feedTravel;
+  const base = L(PR.cx, PR.cy, PR.table);
+  const pass = P.result !== 'fail';
+  blocks.children.forEach((b) => {
+    b.scale.y = Math.max(0.001, h);
+    let pos = base.clone().add(b.userData.off);
+    if (t >= PH.out[0]) pos.z += 0.62 * ease(seg(t, ...PH.out));
+    if (t >= PH.stack[0]) {
+      const p = ease(seg(t, ...PH.stack));
+      const k = P.spot, dest = pass ? L(PR.cx - 0.23 + 0.46 * (k % 2), 6.17 + 0.26 * (Math.floor(k / 2) % 2), 0.25 + 0.076 * Math.floor(k / 4)) : L(13.9, 5.95, 0.15 + 0.02 * P.rej);
+      const from = pos.clone();
+      pos = from.lerp(dest.clone().add(b.userData.off.clone().multiplyScalar(pass ? 1 : 1.3)), p); pos.y += Math.sin(p * Math.PI) * 0.35;
+      if (!pass) { b.rotation.z = p * 0.4; }
+    }
+    b.position.copy(pos);
+  });
+  if (t < PH.ret[1]) P.trace.push([t, force]);
+  P.force = force;
+  if (t >= CYCLE) finishPress();
+}
+function finishPress() {
+  P.running = false; P.n += 1;
+  const pass = P.result === 'pass';
+  const keep = blocks.clone(true); keep.children.forEach((b) => { b.material = b.material.clone(); }); blocks.parent.add(keep); P.kept.push(keep);
+  for (const b of blocks.children) b.visible = false;
+  if (pass) { P.pass++; P.spot++; } else { P.fail++; P.rej++; }
+  if (P.spot >= 12 || P.rej >= 4) { for (const k of P.kept) k.removeFromParent(); P.kept = []; P.spot = 0; P.rej = 0; }
+  P.log.unshift({ n: P.n, f: P.peak, d: P.dens, ok: pass }); P.log = P.log.slice(0, 5);
+  logEvent(`Press stroke #${String(P.n).padStart(3, '0')}: ${pass ? 'PASS' : 'REJECT (' + P.reason + ')'} at ${P.peak.toFixed(0)} kN, ${P.dens.toFixed(2)} g/cm³.`, pass ? 'ok' : 'bad');
+  renderPanel();
+}
+
+/* =====================================================================
+   SCREENS on the controller and the press panel (live canvas textures)
+   ===================================================================== */
+const SCREENS = [];
+function screenPlane(at, w, h, px, draw, rotY = 0) {
+  const c = document.createElement('canvas'); c.width = px; c.height = Math.round(px * h / w);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+  m.position.copy(at); m.rotation.y = rotY; site.add(m);
+  SCREENS.push({ c, tex, draw, t: 0 });
+}
+function setupScreens() {
+  screenPlane(L(4.5, 7.333, 1.49), 0.48, 0.27, 512, drawCtrl);
+  screenPlane(L(15.82, 5.372, 1.28), 0.23, 0.15, 320, drawHMI);
+}
+function screenBase(g, W, H, title) {
+  g.fillStyle = '#0b1210'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#1d7656'; g.fillRect(0, 0, W, H * 0.16);
+  g.fillStyle = '#e8ede9'; g.font = `700 ${H * 0.11}px "Barlow Condensed", sans-serif`; g.textBaseline = 'middle'; g.fillText(title, W * 0.04, H * 0.08);
+}
+function drawCtrl(g, W, H) {
+  screenBase(g, W, H, 'MINELOOP POD CONTROLLER');
+  const ready = S.bags.filter((b) => moistOf(b) != null && moistOf(b) <= SET.moistReady).length;
+  const rows = [
+    ['Inlet', S.batch.running ? 'OPEN' : 'CLOSED', S.batch.running ? '#3fe08c' : '#ff5a4a'],
+    ['Batch', `${fmt(S.batch.total)} / ${fmt(SET.batchL)} L`, '#e8ede9'],
+    ['Tank level', `${Math.round(S.tankLevel * 100)} %`, '#e8ede9'],
+    ['Water', S.water.running ? `${S.water.ntu.toFixed(0)} NTU  → ${S.water.grade}` : 'idle', S.water.grade === 'A' ? '#4aa3ec' : S.water.grade === 'B' ? '#9fd3ff' : '#c98a4b'],
+    ['Bags ready', `${ready} / 4`, ready ? '#3fe08c' : '#e8ede9'],
+  ];
+  rows.forEach(([k, v, col], i) => {
+    const y = H * (0.27 + i * 0.155);
+    g.fillStyle = '#98a6a0'; g.font = `500 ${H * 0.095}px "IBM Plex Sans", sans-serif`; g.fillText(k, W * 0.05, y);
+    g.fillStyle = col; g.font = `500 ${H * 0.1}px "IBM Plex Mono", monospace`; g.textAlign = 'right'; g.fillText(v, W * 0.95, y); g.textAlign = 'left';
+  });
+}
+function drawHMI(g, W, H) {
+  screenBase(g, W, H, 'SMART PRESS');
+  const st = P.running ? (P.t < 1.8 ? 'FEED' : P.t < 4.6 ? 'PRESS' : P.t < 5.4 ? 'CHECK' : 'EJECT') : 'READY';
+  g.fillStyle = '#f2b33d'; g.font = `700 ${H * 0.15}px "Barlow Condensed", sans-serif`; g.fillText(st, W * 0.05, H * 0.33);
+  g.fillStyle = '#e8ede9'; g.font = `500 ${H * 0.2}px "IBM Plex Mono", monospace`; g.fillText(`${(P.force || 0).toFixed(0)} kN`, W * 0.05, H * 0.56);
+  const r = P.result || (P.log[0] ? (P.log[0].ok ? 'pass' : 'fail') : null);
+  if (r) { g.fillStyle = r === 'pass' ? '#3fe08c' : '#ff5a4a'; g.font = `700 ${H * 0.16}px "Barlow Condensed", sans-serif`; g.fillText(r === 'pass' ? 'PASS' : 'REJECT', W * 0.05, H * 0.8); }
+  g.fillStyle = '#98a6a0'; g.font = `500 ${H * 0.1}px "IBM Plex Mono", monospace`; g.textAlign = 'right'; g.fillText(`#${String(P.n).padStart(3, '0')}`, W * 0.95, H * 0.8); g.textAlign = 'left';
+}
+function updateScreens(dt) {
+  for (const s of SCREENS) { s.t -= dt; if (s.t > 0) continue; s.t = 0.25; s.draw(s.c.getContext('2d'), s.c.width, s.c.height); s.tex.needsUpdate = true; }
+}
+
+/* =====================================================================
+   CARD + PANELS
+   ===================================================================== */
+let selected = null;
+const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const PH_NOTE = (what) => `<div class="note"><b>Placeholder</b> ${what} until the team's test data replaces it.</div>`;
+
+const PANELS = {
+  feed: {
+    html: () => `
+    <section class="panel" aria-label="Flocculation tank">
+      <div class="panel-top"><h3>Flocculation tank</h3><label class="toggle go" for="tankOpen"><input type="checkbox" id="tankOpen"><span></span>Open tank</label></div>
+      <div class="slider">
+        <div class="row"><span>Flocculant dose</span><b id="doseVal">–</b></div>
+        <input type="range" id="dose" min="0" max="30" step="1" aria-label="Flocculant dose in ppm">
+        <div class="scale" style="--lo:${SET.doseLo / 30 * 100}%;--hi:${SET.doseHi / 30 * 100}%"></div>
+        <div class="scale-labels"><span>Under</span><span>Good</span><span>Over</span></div>
+      </div>
+      <div class="reads">
+        <div class="read"><small>Floc</small><b id="flocState" style="font-size:13px">–</b></div>
+        <div class="read"><small>Clear layer</small><b id="clearPct">–<em>%</em></b></div>
+        <div class="read"><small>Filtrate est.</small><b id="ntuEst">–<em>NTU</em></b></div>
+      </div>
+      <div class="ctrl"><button class="btn sm" id="mixBtn" type="button">Mix &amp; settle</button><span class="note" style="flex:1;min-width:10em">Open the tank, set a dose, then mix and watch it settle.</span></div>
+      ${PH_NOTE(`Good dose band ${SET.doseLo}–${SET.doseHi} ppm`)}
+    </section>
+    <section class="panel" aria-label="Batch">
+      <div class="panel-top"><h3>Batch feed</h3><span class="led" id="inletLed" data-s="fail">Inlet closed</span></div>
+      <div class="field"><label for="batchL">Batch limit (L)</label><input type="number" id="batchL" min="250" max="20000" step="250"></div>
+      <div class="reads">
+        <div class="read"><small>Flow meter</small><b id="bTotal">0<em>L</em></b></div>
+        <div class="read"><small>Tank level</small><b id="bLevel">–<em>%</em></b></div>
+        <div class="read"><small>Filling</small><b id="bBag">–</b></div>
+      </div>
+      <div class="ctrl"><button class="btn primary" id="batchGo" type="button">Start batch</button><button class="btn sm danger" id="batchStop" type="button">Stop</button><button class="btn sm" id="bagsReset" type="button" title="Empty all four bags for a clean demo">Reset bags</button></div>
+      <div class="note" id="bReason"></div>
+      <ul class="events" id="events"></ul>
+      ${PH_NOTE(`Bag capacity ${fmt(SET.bagCapL)} L and the ${fmt(SET.batchL)} L limit are`)}
+    </section>`,
+    bind() {
+      const o = $('#tankOpen'); o.checked = S.tankOpen; o.onchange = () => { S.tankOpen = o.checked; };
+      const d = $('#dose'); d.value = S.dose; d.oninput = () => { S.dose = +d.value; };
+      $('#mixBtn').onclick = () => { if (!S.tankOpen) { S.tankOpen = true; $('#tankOpen').checked = true; } mixTank(); };
+      const bl = $('#batchL'); bl.value = SET.batchL; bl.onchange = () => { SET.batchL = Math.max(250, Math.min(20000, +bl.value || 5000)); bl.value = SET.batchL; };
+      $('#batchGo').onclick = startBatch; $('#batchStop').onclick = () => stopBatch('Batch stopped by operator. Inlet closed.');
+      $('#bagsReset').onclick = () => { if (S.batch.running) return; S.bags.forEach((b) => { b.fill = 0; b.ageH = 0; b.readyLogged = false; }); S.openBag = null; logEvent('All bags emptied for the demo.'); };
+      renderEvents();
+    },
+    tick() {
+      const q = doseQuality();
+      $('#doseVal').textContent = `${S.dose} ppm`;
+      const fs = $('#flocState'); fs.textContent = q.name; fs.className = q.cls;
+      $('#clearPct').firstChild.textContent = tankFx ? Math.round(tankFx.clearFrac * 100) : '–';
+      $('#ntuEst').firstChild.textContent = Math.round(q.ntu);
+      const B = S.batch, led = $('#inletLed'); led.dataset.s = B.running ? 'ok' : 'fail'; led.textContent = B.running ? 'Inlet open' : 'Inlet closed';
+      $('#bTotal').firstChild.textContent = fmt(B.total);
+      $('#bLevel').firstChild.textContent = Math.round(S.tankLevel * 100);
+      $('#bBag').textContent = B.running ? `Bag ${B.bag + 1}` : '–';
+      $('#batchGo').disabled = B.running; $('#batchStop').disabled = !B.running; $('#bagsReset').disabled = B.running;
+      $('#bReason').textContent = B.reason;
+    },
+  },
+  bags: {
+    html: () => `
+    <section class="panel" aria-label="Bag sensors">
+      <div class="panel-top"><h3>Bag sensors</h3><span class="note">Tap a bag to open it</span></div>
+      <div class="seg" id="bagSeg">${[0, 1, 2, 3].map((i) => `<button type="button" data-i="${i}" aria-pressed="false">Bag ${i + 1}<small id="bs${i}">–</small></button>`).join('')}</div>
+      <div id="bagDetail"></div>
+      ${PH_NOTE(`Ready at ≤ ${SET.moistReady}% moisture, ${DRY.solidsKg} kg dry solids per bag and the drying curve are`)}
+    </section>`,
+    bind() {
+      for (const b of document.querySelectorAll('#bagSeg button')) b.onclick = () => { S.openBag = S.openBag === +b.dataset.i ? null : +b.dataset.i; renderPanel(); };
+      renderBagDetail();
+    },
+    tick() {
+      S.bags.forEach((b, i) => { const m = moistOf(b); const el = $('#bs' + i); if (el) el.textContent = m == null ? (b.fill < 0.02 ? 'empty' : Math.round(b.fill * 100) + '% full') : m.toFixed(0) + '%'; });
+      for (const b of document.querySelectorAll('#bagSeg button')) b.setAttribute('aria-pressed', String(+b.dataset.i === S.openBag));
+      updateBagDetail();
+    },
+  },
+  grade: {
+    html: () => `
+    <section class="panel" aria-label="Water grading">
+      <div class="panel-top"><h3>Turbidity → valve</h3><span class="led" id="gLed" data-s="idle">Idle</span></div>
+      <div class="reads two">
+        <div class="read big"><small>Turbidity</small><b id="gNtu">–<em>NTU</em></b></div>
+        <div class="read big"><small>Grade</small><b id="gGrade">–</b></div>
+      </div>
+      <canvas class="graph" id="gGraph" width="680" height="240" aria-label="Turbidity over the run"></canvas>
+      <div class="route">
+        <div id="rA"><small>A · plant wash</small><b id="lA">0 L</b></div>
+        <div id="rB"><small>B · curing / dust</small><b id="lB">0 L</b></div>
+        <div id="rC"><small>C · back to bags</small><b id="lC">0 L</b></div>
+      </div>
+      <div class="ctrl"><button class="btn primary" id="gradeGo" type="button">Run grading</button><span class="note" style="flex:1;min-width:10em">Water quality follows the flocculant dose set in Z1.</span></div>
+      ${PH_NOTE(`A below ${SET.ntuA} NTU, B below ${SET.ntuB} NTU`)}
+    </section>`,
+    bind() { $('#gradeGo').onclick = startGrading; },
+    tick() {
+      const W = S.water;
+      $('#gNtu').firstChild.textContent = W.running ? W.ntu.toFixed(0) : '–';
+      const gg = $('#gGrade'); gg.textContent = W.running ? W.grade : '–'; gg.style.color = W.grade === 'A' ? 'var(--water)' : W.grade === 'B' ? 'var(--water-b)' : 'var(--slurry)';
+      const led = $('#gLed'); led.dataset.s = W.running ? 'run' : 'idle'; led.textContent = W.running ? 'Running' : 'Idle';
+      for (const g of ['A', 'B', 'C']) { $('#l' + g).textContent = fmt(W.litres[g]) + ' L'; $('#r' + g).classList.toggle('on', W.running && W.grade === g); }
+      $('#gradeGo').disabled = W.running;
+      drawNtu();
+    },
+  },
+  press: {
+    html: () => `<section class="panel" aria-label="Mix designer">
+      <div class="panel-top"><h3>Mix designer</h3><span class="state" id="mxState">–</span></div>
+      <div class="note">One batch is 200 kg (team plan). Quarry dust makes up the rest.</div>
+      <div class="slider"><div class="row"><span>Sludge cake</span><b id="mxK">–</b></div><input type="range" id="mxCake" min="20" max="60" step="1" aria-label="Sludge cake percent"></div>
+      <div class="slider"><div class="row"><span>Cement</span><b id="mxC">–</b></div><input type="range" id="mxCem" min="5" max="15" step="0.5" aria-label="Cement percent"></div>
+      <div class="mixbar" aria-hidden="true"><i class="k" id="mbK"></i><i class="d" id="mbD"></i><i class="c" id="mbC"></i></div>
+      <div class="legend"><span style="--c:#6b5a46" id="lgK">Cake</span><span style="--c:#bdb6a6" id="lgD">Quarry dust</span><span style="--c:#7d8486" id="lgC">Cement</span></div>
+      <div class="reads">
+        <div class="read"><small>Mix index</small><b id="mxIdx">–</b></div>
+        <div class="read"><small>Pred. density</small><b id="mxDen">–<em>g/cm³</em></b></div>
+        <div class="read"><small>Mixed left</small><b id="mxLeft">–<em>kg</em></b></div>
+      </div>
+      <div class="ctrl"><button class="btn sm" id="mxGo" type="button">Mix batch</button><span class="note" id="mxCake2" style="flex:1;min-width:10em"></span></div>
+      ${PH_NOTE(`The mix rule and the pass line (index ≥ ${SET.mixPass}) are`)}
+    </section>
+    <section class="panel" aria-label="Press control">
+      <div class="panel-top"><h3>Press control</h3><span class="led" id="pLed" data-s="idle">Ready</span></div>
+      <div class="steps" id="pSteps">${['Feed', 'Press', 'Check', 'Eject', 'Log'].map((s) => `<span>${s}</span>`).join('')}</div>
+      <canvas class="graph" id="pGraph" width="680" height="240" aria-label="Press force over the cycle"></canvas>
+      <div class="reads">
+        <div class="read"><small>Force</small><b id="rForce">0<em>kN</em></b></div>
+        <div class="read"><small>Charge</small><b id="rCharge">–<em>kg</em></b></div>
+        <div class="read"><small>Density</small><b id="rDens">–<em>g/cm³</em></b></div>
+      </div>
+      <div class="ctrl">
+        <button class="btn primary" id="pGo" type="button">Press a block</button>
+        <label class="toggle" for="pFault"><input type="checkbox" id="pFault"><span></span>Simulate low fill</label>
+      </div>
+      <div class="tally"><span>Passed<b id="tPass">0</b></span><span>Rejected<b id="tFail">0</b></span><span>Cake in bay<b id="tCake">0 kg</b></span></div>
+      <ul class="log" id="pLog"></ul>
+      <ul class="events" id="events"></ul>
+      ${PH_NOTE(`Target force ${SET.pressKN} kN, charge and density are`)}
+    </section>`,
+    bind() {
+      const mc = $('#mxCake'), me = $('#mxCem'); mc.value = MIXD.cake; me.value = MIXD.cement;
+      mc.oninput = () => { MIXD.cake = +mc.value; }; me.oninput = () => { MIXD.cement = +me.value; };
+      $('#mxGo').onclick = mixBatch;
+      $('#pGo').onclick = startPress;
+      const f = $('#pFault'); f.checked = P.fault; f.onchange = () => { P.fault = f.checked; };
+      setLED(P.running ? 'run' : (P.result || 'idle')); renderLog();
+    },
+    tick() {
+      const { k, c, d } = mixParts(), idx = mixIndex();
+      $('#mxK').textContent = `${k}% · ${fmt(2 * k)} kg`; $('#mxC').textContent = `${c}% · ${(2 * c).toFixed(0)} kg`;
+      $('#mbK').style.width = k + '%'; $('#mbD').style.width = d + '%'; $('#mbC').style.width = c + '%';
+      $('#lgD').textContent = `Quarry dust ${d}%`;
+      const mi = $('#mxIdx'); mi.textContent = idx.toFixed(0); mi.className = idx >= SET.mixPass ? 'ok' : 'bad';
+      $('#mxDen').firstChild.textContent = densityOf(idx).toFixed(2);
+      $('#mxLeft').firstChild.textContent = S.mixT > 0 ? '…' : fmt(S.mixKg);
+      const ms = $('#mxState'); ms.textContent = S.mixT > 0 ? 'Mixing' : idx >= SET.mixPass ? 'Predicted pass' : (S.cakeMoist > SET.moistReady ? 'Cake too wet' : 'Predicted reject'); ms.className = 'state ' + (S.mixT > 0 ? 'warn' : idx >= SET.mixPass ? 'ok' : 'bad');
+      $('#mxCake2').textContent = `Cake in bay ${fmt(S.cakeKg)} kg at ${S.cakeMoist.toFixed(0)}% moisture.`;
+      $('#mxGo').disabled = S.mixT > 0;
+      $('#pGo').disabled = P.running || S.mixT > 0;
+      $('#rForce').firstChild.textContent = (P.force || 0).toFixed(0);
+      $('#rCharge').firstChild.textContent = P.running && P.t > 1.0 ? P.charge.toFixed(1) : (P.log.length ? P.charge.toFixed(1) : '–');
+      $('#rDens').firstChild.textContent = P.result ? P.dens.toFixed(2) : '–';
+      $('#tCake').textContent = fmt(S.cakeKg) + ' kg';
+      const el = $('#pSteps'); let cur = -1;
+      if (P.running) cur = P.t < 1.8 ? 0 : P.t < 4.6 ? 1 : P.t < 5.4 ? 2 : 3;
+      const done = P.running ? cur : (P.n > 0 ? 5 : 0);
+      [...el.children].forEach((s, i) => { s.className = i === cur ? 'on' : i < done ? 'done' : ''; });
+      drawForce();
+    },
+  },
+};
+
+function renderBagDetail() {
+  const el = $('#bagDetail'); if (!el) return;
+  const i = S.openBag;
+  if (i == null) { el.innerHTML = '<p class="note">Pick a bag to open it and read its moisture probe and load cells.</p>'; el.dataset.i = ''; return; }
+  el.dataset.i = i;
+  el.innerHTML = `
+    <div class="chipline"><span class="state" id="bdState">–</span><span class="state" id="bdEta">–</span></div>
+    <div class="slider">
+      <div class="row"><span>Moisture probe</span><b id="bdMoist">–</b></div>
+      <div class="gauge"><i id="bdBar"></i><u style="left:${SET.moistReady}%"></u></div>
+      <div class="gauge-labels"><span>0%</span><span>ready ≤ ${SET.moistReady}%</span><span>100%</span></div>
+    </div>
+    <div class="reads two">
+      <div class="read"><small>Load cells (2)</small><b id="bdKg">–<em>kg</em></b></div>
+      <div class="read"><small>Moisture from weight</small><b id="bdKgM">–<em>%</em></b></div>
+    </div>
+    <div class="ctrl"><button class="btn sm" id="bdFf" type="button">Fast-forward 6 h</button><button class="btn primary sm" id="bdSend" type="button">Send cake to mixer</button></div>`;
+  $('#bdFf').onclick = () => fastForward(6);
+  $('#bdSend').onclick = () => sendToMixer(i);
+  updateBagDetail();
+}
+function updateBagDetail() {
+  const el = $('#bagDetail'); if (!el) return;
+  if (String(S.openBag ?? '') !== el.dataset.i) renderBagDetail();
+  const i = S.openBag; if (i == null) return;
+  const b = S.bags[i], m = moistOf(b), [st, cls] = bagState(b, i), eta = etaOf(b);
+  const s = $('#bdState'); s.textContent = st; s.className = 'state ' + cls;
+  const e = $('#bdEta'); e.textContent = eta == null ? 'No cake yet' : eta === 0 ? 'Ready now' : eta === Infinity ? 'Never at this target' : `Ready in ≈ ${eta.toFixed(0)} h`; e.className = 'state ' + (eta === 0 ? 'ok' : '');
+  $('#bdMoist').textContent = m == null ? '–' : (m + Math.sin(performance.now() / 700) * 0.2).toFixed(1) + ' %';
+  $('#bdBar').style.width = (m == null ? 0 : m) + '%';
+  const w = weightOf(b); $('#bdKg').firstChild.textContent = fmt(w);
+  $('#bdKgM').firstChild.textContent = m == null ? '–' : ((1 - DRY.solidsKg / w) * 100).toFixed(1);
+  $('#bdFf').disabled = m == null || m <= SET.moistReady;
+  $('#bdSend').disabled = !(m != null && m <= SET.moistReady);
+}
+function renderEvents() {
+  const el = $('#events'); if (!el) return;
+  el.innerHTML = S.events.length ? S.events.map((e) => `<li><time>${e.t}</time><span class="${e.cls}">${e.text}</span></li>`).join('') : '<li class="empty">Events from the inlet, float switches and sensors appear here.</li>';
+}
+function renderLog() {
+  const el = $('#pLog'); if (!el) return;
+  $('#tPass').textContent = P.pass; $('#tFail').textContent = P.fail;
+  el.innerHTML = P.log.length ? P.log.map((r) => `<li><b>#${String(r.n).padStart(3, '0')}</b><span>${r.f.toFixed(0)} kN · ${r.d.toFixed(2)} g/cm³</span><span class="${r.ok ? 'ok' : 'bad'}">${r.ok ? 'PASS' : 'REJECT'}</span></li>`).join('') : '<li class="empty">No blocks pressed yet.</li>';
+}
+function renderPanel() {
+  if (sheet) { renderEvents(); return; }
+  if (!selected) return;
+  if (ZONES[selected].panel === 'press') { renderLog(); setLED(P.running ? 'run' : (P.result || 'idle')); }
+  if (ZONES[selected].panel === 'bags') renderBagDetail();
+  renderEvents();
+}
+function graphFrame(g, W, H, padL, padB, padT, padR) {
+  g.clearRect(0, 0, W, H); g.font = '500 20px "IBM Plex Mono", monospace'; g.fillStyle = '#6c7a74'; g.strokeStyle = '#25313a'; g.lineWidth = 1;
+}
+function drawForce() {
+  const c = $('#pGraph'); if (!c) return;
+  const g = c.getContext('2d'), W = c.width, H = c.height, padL = 54, padB = 34, padT = 16, padR = 12;
+  const maxF = SET.pressKN * 1.3, maxT = PH.ret[1];
+  const X = (t) => padL + (t / maxT) * (W - padL - padR), Y = (f) => H - padB - (f / maxF) * (H - padB - padT);
+  graphFrame(g, W, H);
+  for (const f of [0, 50, 100]) { g.beginPath(); g.moveTo(padL, Y(f)); g.lineTo(W - padR, Y(f)); g.stroke(); g.textAlign = 'right'; g.textBaseline = 'middle'; g.fillText(String(f), padL - 8, Y(f)); }
+  g.textAlign = 'center'; g.textBaseline = 'top'; for (const t of [0, 2, 4, 6]) g.fillText(t + 's', X(t), H - padB + 8);
+  g.fillStyle = 'rgba(63,224,140,0.08)'; g.fillRect(padL, Y(maxF), W - padL - padR, Y(SET.pressKN * 0.95) - Y(maxF));
+  g.setLineDash([8, 6]); g.strokeStyle = '#3fe08c'; g.beginPath(); g.moveTo(padL, Y(SET.pressKN)); g.lineTo(W - padR, Y(SET.pressKN)); g.stroke(); g.setLineDash([]);
+  g.fillStyle = '#3fe08c'; g.textAlign = 'left'; g.textBaseline = 'bottom'; g.font = '600 19px "Barlow Condensed", sans-serif'; g.fillText('TARGET ' + SET.pressKN + ' kN', padL + 8, Y(SET.pressKN) - 4);
+  g.save(); g.translate(16, (H - padB) / 2 + 8); g.rotate(-Math.PI / 2); g.fillStyle = '#6c7a74'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('kN', 0, 0); g.restore();
+  if (P.trace.length > 1) {
+    const col = P.result === 'fail' ? '#ff5a4a' : P.result === 'pass' ? '#3fe08c' : '#f2b33d';
+    g.beginPath(); g.moveTo(X(P.trace[0][0]), Y(P.trace[0][1])); for (const [t, f] of P.trace) g.lineTo(X(t), Y(f));
+    const last = P.trace[P.trace.length - 1]; g.strokeStyle = col; g.lineWidth = 3; g.stroke();
+    g.lineTo(X(last[0]), Y(0)); g.lineTo(X(P.trace[0][0]), Y(0)); g.closePath(); g.fillStyle = col + '22'; g.fill();
+    g.beginPath(); g.arc(X(last[0]), Y(last[1]), 5, 0, Math.PI * 2); g.fillStyle = col; g.fill();
+  }
+}
+function drawNtu() {
+  const c = $('#gGraph'); if (!c) return;
+  const g = c.getContext('2d'), W = c.width, H = c.height, padL = 54, padB = 18, padT = 14, padR = 12, maxN = 400;
+  const Y = (n) => H - padB - (Math.min(n, maxN) / maxN) * (H - padB - padT), X = (i) => padL + (i / 240) * (W - padL - padR);
+  graphFrame(g, W, H);
+  g.fillStyle = 'rgba(74,163,236,0.10)'; g.fillRect(padL, Y(SET.ntuA), W - padL - padR, Y(0) - Y(SET.ntuA));
+  g.fillStyle = 'rgba(159,211,255,0.06)'; g.fillRect(padL, Y(SET.ntuB), W - padL - padR, Y(SET.ntuA) - Y(SET.ntuB));
+  g.fillStyle = 'rgba(201,138,75,0.07)'; g.fillRect(padL, Y(maxN), W - padL - padR, Y(SET.ntuB) - Y(maxN));
+  g.font = '600 19px "Barlow Condensed", sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'left';
+  g.fillStyle = '#4aa3ec'; g.fillText('A', padL + 8, (Y(SET.ntuA) + Y(0)) / 2);
+  g.fillStyle = '#9fd3ff'; g.fillText('B', padL + 8, (Y(SET.ntuB) + Y(SET.ntuA)) / 2);
+  g.fillStyle = '#c98a4b'; g.fillText('C', padL + 8, (Y(maxN) + Y(SET.ntuB)) / 2);
+  g.font = '500 20px "IBM Plex Mono", monospace'; g.fillStyle = '#6c7a74'; g.textAlign = 'right';
+  for (const n of [0, SET.ntuA, SET.ntuB, 400]) g.fillText(String(n), padL - 8, Y(n));
+  const tr = S.water.trace; if (tr.length > 1) {
+    g.beginPath(); tr.forEach((n, i) => (i ? g.lineTo(X(i), Y(n)) : g.moveTo(X(i), Y(n)))); g.strokeStyle = '#e8ede9'; g.lineWidth = 3; g.stroke();
+    g.beginPath(); g.arc(X(tr.length - 1), Y(tr[tr.length - 1]), 5, 0, Math.PI * 2); g.fillStyle = '#e8ede9'; g.fill();
+  }
+}
+
+let sheet = null;
+function select(id, opts = {}) {
+  selected = id; sheet = null;
+  for (const b of ['btnSet', 'btnFault']) $('#' + b).setAttribute('aria-pressed', 'false');
+  document.body.classList.toggle('card-open', !!id);
+  for (const ch of document.querySelectorAll('.chip')) ch.setAttribute('aria-pressed', String(ch.dataset.id === id));
+  for (const r of Object.values(roofParts)) r.lift = 0;
+  if (id !== 'Z2') S.openBag = null;
+  if (id !== 'Z1') S.tankOpen = false;
+  if (opts.bag != null) S.openBag = opts.bag;
+  if (opts.tank) S.tankOpen = true;
+  const card = $('#card');
+  if (!id) { card.hidden = true; bracket.visible = false; frameAroundCard(); return; }
+  const z = ZONES[id];
+  if (z.roof) for (const [n, r] of Object.entries(roofParts)) if (z.roof.some((p) => n.startsWith(p))) r.lift = 1;
+  if (bracket.parent !== site) site.add(bracket);
+  setBracket(z.box);
+  const panel = z.panel ? PANELS[z.panel] : null;
+  card.innerHTML = `
+    <div class="card-head"><div><div class="tag">${z.tag}</div><h2>${z.title}</h2></div>
+      <button class="x" type="button" id="cardClose" aria-label="Close">${ICON_X}</button></div>
+    <div class="card-body">
+      ${panel ? panel.html() : ''}
+      <p>${z.what}</p>
+      <ul class="specs">${z.specs.map((s) => `<li>${s}</li>`).join('')}</ul>
+      ${z.soon ? `<div class="next"><h3>Coming next</h3>${z.soon.map((s) => `<div class="soon">${s}</div>`).join('')}</div>` : ''}
+    </div>`;
+  card.hidden = false;
+  $('#cardClose').onclick = () => select(null);
+  if (panel) panel.bind();
+  renderEvents();
+  if (TOURING) card.hidden = true;
+  if (opts.keepCamera) return;
+  const focus = (z.focus || z.center).clone(); const wf = site.localToWorld(focus.clone());
+  const v = new THREE.Vector3(...z.view); v.multiplyScalar(Math.min(2.6, Math.max(1, 1.3 / (innerWidth / innerHeight))));
+  flyTo(wf.clone().add(v), wf);
+  frameAroundCard();
+}
+function frameAroundCard() {
+  const card = $('#card');
+  if (renderer.xr.isPresenting || card.hidden) { camera.clearViewOffset(); camera.updateProjectionMatrix(); return; }
+  const W = innerWidth, H = innerHeight;
+  if (W >= 720) { const s = card.offsetWidth + 16; camera.setViewOffset(W + s, H, s, 0, W, H); }
+  else { const s = Math.min(card.offsetHeight + 40, H * 0.5); camera.setViewOffset(W, H + s, 0, s, W, H); }
+  camera.updateProjectionMatrix();
+}
+function buildRail() {
+  $('#rail').innerHTML = ORDER.map((id) => `<button class="chip" type="button" data-id="${id}" aria-pressed="false"><i>${ZONES[id].tag}</i>${ZONES[id].label}</button>`).join('');
+  for (const ch of document.querySelectorAll('.chip')) ch.onclick = () => select(selected === ch.dataset.id ? null : ch.dataset.id);
+}
+
+/* =====================================================================
+   SHEETS: setpoints and fault injection
+   ===================================================================== */
+const SP = [
+  ['Batch feed', [['batchL', 'Batch limit', 'L', 250, 20000, 250, 'Inlet closes at this total'], ['bagCapL', 'Bag capacity', 'L', 250, 5000, 50, 'Slurry one bag takes before the float switch trips'], ['bagTripKg', 'Load-cell trip', 'kg', 300, 6000, 10, 'Backup: closes the inlet if a bag gets this heavy']]],
+  ['Flocculation', [['doseLo', 'Good dose from', 'ppm', 0, 30, 1, ''], ['doseHi', 'Good dose to', 'ppm', 0, 30, 1, '']]],
+  ['Geobags', [['moistReady', 'Ready at or below', '%', 10, 80, 1, 'Moisture (wet basis) at which cake can go to the mixer']]],
+  ['Water grades', [['ntuA', 'Grade A below', 'NTU', 1, 400, 1, 'Back to the plant as wash water'], ['ntuB', 'Grade B below', 'NTU', 1, 400, 1, 'Dust spray and curing; above this is C']]],
+  ['Press', [['pressKN', 'Target force', 'kN', 10, 1000, 5, 'Pass needs at least 95% of this'], ['mixPass', 'Mix index to pass', '', 0, 100, 1, 'Illustrative strength rule']]],
+];
+const FAULTS = [
+  { id: 'dose', title: 'Dosing pump fails', what: 'No flocculant reaches the tank. Flocs do not form, the drained water stays cloudy, the grader sends it back to the bags (C) and raises an alarm.', go: () => { select('Z3'); startGrading(); } },
+  { id: 'float', title: 'Float switch sticks', what: 'The bag keeps filling past full. Its two load cells see the weight pass the trip limit and close the inlet: a second, independent interlock.', go: () => { select('Z1'); if (!S.batch.running) { S.bags.forEach((b) => { b.fill = 0; b.ageH = 0; b.readyLogged = false; }); startBatch(); } } },
+  { id: 'fill', title: 'Press under-filled', what: 'The mould gets too little mix. Force stays below target, the density check fails, the blocks go to the reject pile and the stroke is logged.', go: () => { select('Z5'); startPress(); } },
+  { id: 'wet', title: 'Wet cake sent early', what: 'Someone tries to empty a bag before it is dry. The controller blocks it until the moisture probe and load cells agree the cake is ready.', button: 'Try it', go: () => {
+      const i = S.bags.findIndex((b) => moistOf(b) != null && moistOf(b) > SET.moistReady);
+      if (i < 0) { logEvent('No wet bag to test: every bag is empty or already ready. Run a batch first.', 'bad'); return; }
+      select('Z2', { bag: i }); sendToMixer(i);
+    } },
+];
+const faultOn = (id) => (id === 'fill' ? P.fault : id === 'wet' ? false : S.faults[id]);
+function setFault(id, on) {
+  if (id === 'fill') P.fault = on; else S.faults[id] = on;
+  const f = FAULTS.find((x) => x.id === id);
+  logEvent(on ? `Fault injected: ${f.title.toLowerCase()}.` : `Fault cleared: ${f.title.toLowerCase()}.`, on ? 'bad' : '');
+}
+const SHEETS = {
+  setpoints: {
+    title: 'Pod setpoints', tag: 'Controller',
+    html: () => `<p>Every limit the controller works to. Change one and the demos react straight away.</p>
+      ${SP.map(([g, rows]) => `<div class="group"><h3>${g}</h3>${rows.map(([k, l, u, mn, mx, st, hint]) => `
+        <div class="field"><label for="sp_${k}">${l}${hint ? `<small>${hint}</small>` : ''}</label><span><input type="number" id="sp_${k}" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${SET[k]}"> <span class="note">${u}</span></span></div>`).join('')}</div>`).join('')}
+      <div class="ctrl"><button class="btn sm" id="spReset" type="button">Reset to placeholders</button></div>
+      <div class="note"><b>Placeholder</b> All values here are placeholders until the team's test data replaces them.</div>`,
+    bind() {
+      for (const inp of document.querySelectorAll('[id^=sp_]')) inp.onchange = () => {
+        const k = inp.dataset.k; let v = Math.max(+inp.min, Math.min(+inp.max, +inp.value || SET0[k]));
+        if (k === 'doseLo') v = Math.min(v, SET.doseHi - 1); if (k === 'doseHi') v = Math.max(v, SET.doseLo + 1);
+        if (k === 'ntuA') v = Math.min(v, SET.ntuB - 1); if (k === 'ntuB') v = Math.max(v, SET.ntuA + 1);
+        SET[k] = v; inp.value = v; logEvent(`Setpoint changed: ${k} = ${v}.`);
+      };
+      $('#spReset').onclick = () => { Object.assign(SET, SET0); openSheet('setpoints'); logEvent('Setpoints reset to placeholders.'); };
+    },
+  },
+  faults: {
+    title: 'Fault demos', tag: 'Safety',
+    html: () => `<p>Inject a fault and watch how the sensors and interlocks catch it. "Watch it" jumps to the zone and runs the demo.</p>
+      ${FAULTS.map((f) => `<div class="fault" id="fx_${f.id}">
+        <div class="fault-top"><b>${f.title}</b>${f.button ? '' : `<label class="toggle" for="ft_${f.id}"><input type="checkbox" id="ft_${f.id}" data-f="${f.id}"><span></span>Inject</label>`}</div>
+        <p>${f.what}</p>
+        <div class="ctrl"><button class="btn sm${f.button ? ' primary' : ''}" type="button" data-go="${f.id}">${f.button || 'Watch it'}</button></div>
+      </div>`).join('')}
+      <ul class="events" id="events"></ul>`,
+    bind() {
+      for (const t of document.querySelectorAll('[id^=ft_]')) { t.checked = faultOn(t.dataset.f); t.onchange = () => setFault(t.dataset.f, t.checked); }
+      for (const b of document.querySelectorAll('[data-go]')) b.onclick = () => { const f = FAULTS.find((x) => x.id === b.dataset.go); if (!f.button && !faultOn(f.id)) setFault(f.id, true); f.go(); };
+      renderEvents();
+    },
+    tick() { for (const f of FAULTS) { const el = $('#fx_' + f.id); if (el) el.classList.toggle('on', faultOn(f.id)); } },
+  },
+};
+function openSheet(kind) {
+  if (sheet === kind) { select(null); return; }
+  select(null); sheet = kind;
+  const sh = SHEETS[kind], card = $('#card');
+  card.innerHTML = `<div class="card-head"><div><div class="tag">${sh.tag}</div><h2>${sh.title}</h2></div><button class="x" type="button" id="cardClose" aria-label="Close">${ICON_X}</button></div>
+    <div class="card-body">${sh.html()}</div>`;
+  card.hidden = false; document.body.classList.add('card-open');
+  $('#cardClose').onclick = () => select(null);
+  sh.bind();
+  $('#btnSet').setAttribute('aria-pressed', String(kind === 'setpoints')); $('#btnFault').setAttribute('aria-pressed', String(kind === 'faults'));
+  frameAroundCard();
+}
+$('#btnSet').onclick = () => openSheet('setpoints');
+$('#btnFault').onclick = () => openSheet('faults');
+
+/* =====================================================================
+   GUIDED TOUR (captions follow the video storyboard; runs the demos; works in AR)
+   ===================================================================== */
+let TOURING = false;
+const T = { i: 0, t: 0, paused: false, fired: new Set() };
+const TOUR = [
+  { zone: 'pit', tag: 'Today', title: 'Sludge fills the pit', dur: 8,
+    body: 'Wash slurry settles in open pits. The sludge is dug out by JCB and dumped, which costs money and land.' },
+  { zone: null, tag: 'MineLoop', title: 'A pod beside the existing pit', dur: 7,
+    body: 'About 22 × 18 m. The pit keeps recycling the bulk wash water; the pod takes only the sludge.' },
+  { zone: 'Z1', tag: '01', title: 'Sludge in, flocculant dosed', dur: 11, opts: { tank: true },
+    body: 'The pump feeds sludge through a flow meter into the 500 L tank. Flocculant makes the fine particles clump so they drain fast.',
+    run: () => { S.bags.forEach((b) => { b.fill = 0; b.ageH = 0; b.readyLogged = false; }); S.dose = Math.max(S.dose, SET.doseLo); mixTank(); startBatch(); } },
+  { zone: 'Z2', tag: '02', title: 'Dewater in geotextile bags', dur: 11,
+    body: 'Bags fill one after another; a float switch moves the feed on. At the batch limit the inlet valve closes on its own.',
+    at: [[4, () => { S.openBag = S.batch.running ? S.batch.bag : 0; }]] },
+  { zone: 'Z3', tag: '03', title: 'Grade the water', dur: 10,
+    body: 'A turbidity sensor reads the drained water. The valve sends it to plant wash (A), curing and dust spray (B) or back to the bags (C).',
+    run: () => { if (!S.water.running) startGrading(); } },
+  { zone: 'Z2', tag: '04', title: 'Sensors say when the cake is ready', dur: 11,
+    body: 'A moisture probe and two load cells on every bag. Two days on, the cake reaches the target and is released to the cake bay.',
+    run: () => { S.openBag = 0; fastForward(50); }, at: [[7.5, () => sendToMixer(0)]] },
+  { zone: 'Z5', tag: '05', title: 'Smart press', dur: 12,
+    body: 'Cake, quarry dust and cement are weighed and mixed. The press works to a target force; the density check lights green for pass and logs every block.',
+    run: () => { if (S.mixKg < 14) S.mixKg = 200; startPress(); } },
+  { zone: 'Z6', tag: '06', title: 'Cure and sell', dur: 8,
+    body: 'Blocks cure under a mist of recovered grade B water, then leave by truck on the road the plant already uses.' },
+  { zone: null, tag: 'MineLoop', title: 'Sludge in. Blocks and clean water out.', dur: 10,
+    body: '1 t of sludge a day becomes about 7,500 blocks a month (team financial model estimate). Concept model, not to scale.' },
+];
+function tourGo(i) {
+  T.i = Math.max(0, Math.min(TOUR.length - 1, i)); T.t = 0; T.fired = new Set();
+  const st = TOUR[T.i];
+  if (st.zone) select(st.zone, st.opts || {}); else { select(null); flyTo(HOME.pos.clone().multiplyScalar(homeFit()), HOME.target, 1.4); }
+  if (st.run) st.run();
+  $('#tbTag').textContent = st.tag; $('#tbTitle').textContent = st.title; $('#tbBody').textContent = st.body;
+  $('#tbDots').innerHTML = TOUR.map((_, k) => `<span class="${k === T.i ? 'on' : k < T.i ? 'done' : ''}"></span>`).join('');
+}
+function startTour() {
+  TOURING = true; T.paused = false; document.body.classList.add('tour'); $('#tourbar').hidden = false; $('#tbPlay').textContent = '❚❚';
+  if (!labels.visible) { labels.visible = true; $('#btnLabels').setAttribute('aria-pressed', 'true'); }
+  tourGo(0);
+}
+function endTour() { TOURING = false; document.body.classList.remove('tour'); $('#tourbar').hidden = true; select(null); }
+function updateTour(dt) {
+  if (!TOURING) return;
+  const st = TOUR[T.i];
+  if (!T.paused) T.t += dt;
+  for (const [k, [at, fn]] of (st.at || []).entries()) if (T.t >= at && !T.fired.has(k)) { T.fired.add(k); fn(); }
+  $('#tbProg').style.width = Math.min(100, (T.t / st.dur) * 100) + '%';
+  if (T.t >= st.dur) { if (T.i < TOUR.length - 1) tourGo(T.i + 1); else { T.paused = true; $('#tbPlay').textContent = '↺'; } }
+}
+$('#btnTour').onclick = () => (TOURING ? endTour() : startTour());
+$('#tbPrev').onclick = () => tourGo(T.i - 1);
+$('#tbNext').onclick = () => tourGo(T.i + 1);
+$('#tbExit').onclick = endTour;
+$('#tbPlay').onclick = () => {
+  if (T.i === TOUR.length - 1 && T.t >= TOUR[T.i].dur) { tourGo(0); T.paused = false; $('#tbPlay').textContent = '❚❚'; return; }
+  T.paused = !T.paused; $('#tbPlay').textContent = T.paused ? '▶' : '❚❚'; $('#tbPlay').setAttribute('aria-label', T.paused ? 'Play' : 'Pause');
+};
+
+/* ---------- status pill ---------- */
+let statusKey = '';
+function updateStatus() {
+  const items = [];
+  if (S.batch.running) items.push(['', `Batch <b>${fmt(S.batch.total)} L</b>`]);
+  if (S.water.running) items.push([S.water.grade === 'C' ? 'bad' : 'ok', `Water <b>${S.water.ntu.toFixed(0)} NTU</b> → ${S.water.grade}`]);
+  if (P.running) items.push(['', 'Press running']);
+  const ready = S.bags.filter((b) => moistOf(b) != null && moistOf(b) <= SET.moistReady).length;
+  if (ready) items.push(['ok', `<b>${ready}</b> bag${ready > 1 ? 's' : ''} ready`]);
+  if (S.mixT > 0) items.push(['', 'Mixing']);
+  for (const f of FAULTS) if (faultOn(f.id)) items.push(['bad', 'Fault: ' + f.title.toLowerCase()]);
+  const key = items.map((x) => x.join()).join('|');
+  if (key !== statusKey) { statusKey = key; $('#status').innerHTML = items.map(([c, t]) => `<span class="pill ${c}">${t}</span>`).join(''); }
+}
+
+/* ---------- picking ---------- */
+const ray = new THREE.Raycaster();
+function zoneFromHit(hit) {
+  let o = hit.object;
+  if (o.userData.bag != null) return { id: 'Z2', bag: o.userData.bag };
+  if (o.name === 'Sludge_tank' || o.name === 'Tank_lid') return { id: 'Z1', tank: true };
+  if (o.userData.zoneId) return { id: o.userData.zoneId };
+  while (o) {
+    if (o.userData.zoneId) return { id: o.userData.zoneId };
+    if (o.name === 'ZONE_Context') {
+      const p = site.worldToLocal(hit.point.clone());
+      if (ZONES.pit.box.containsPoint(new THREE.Vector3(p.x, 0.1, p.z))) return { id: 'pit' };
+      if (ZONES.plant.box.containsPoint(new THREE.Vector3(p.x, 0.1, p.z))) return { id: 'plant' };
+      return null;
+    }
+    o = o.parent;
+  }
+  return null;
+}
+function pickWithRay() {
+  if (!site) return;
+  const targets = labels.visible ? [...labels.children, ...pickables] : pickables;
+  const hits = ray.intersectObjects(targets, false).filter((h) => h.object.visible && !(h.object.material && h.object.material.transparent && h.object.material.opacity < 0.5 && h.object.userData.bag == null));
+  const z = hits.length ? zoneFromHit(hits[0]) : null;
+  if (!z) return select(null);
+  if (z.id === selected && (z.bag != null || z.tank)) {   // same zone: just open the bag / tank without moving the camera
+    if (z.bag != null) S.openBag = z.bag; if (z.tank) S.tankOpen = true;
+    if (z.tank) { const o = $('#tankOpen'); if (o) o.checked = true; }
+    renderPanel(); return;
+  }
+  if (z.id === selected) return;
+  select(z.id, z);
+}
+let down = null;
+renderer.domElement.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!down || renderer.xr.isPresenting) return;
+  const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y), dt = performance.now() - down.t; down = null;
+  if (moved > 6 || dt > 500) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  pickWithRay();
+});
+
+/* ---------- top bar ---------- */
+$('#btnLabels').onclick = (e) => { labels.visible = !labels.visible; e.currentTarget.setAttribute('aria-pressed', String(labels.visible)); };
+$('#btnReset').onclick = () => { select(null); flyTo(HOME.pos.clone().multiplyScalar(homeFit()), HOME.target); };
+
+/* =====================================================================
+   AR (WebXR immersive-ar with hit-test + DOM overlay; Android Chrome)
+   ===================================================================== */
+const reticle = new THREE.Group(); reticle.matrixAutoUpdate = false; reticle.visible = false; scene.add(reticle);
+{
+  reticle.add(new THREE.Mesh(new THREE.RingGeometry(0.045, 0.06, 40).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x3fe08c })));
+  const fp = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), new THREE.LineBasicMaterial({ color: 0x3fe08c, transparent: true, opacity: 0.8 }));
+  fp.name = 'footprint'; reticle.add(fp);
+}
+let arScale = 1 / 60, arYaw = 0, placed = false, hitSource = null, xrSession = null;
+const FOOT = { w: 28.5, d: 32 };
+function setFootprint() { const fp = reticle.getObjectByName('footprint'); fp.scale.set(FOOT.w * arScale, 1, FOOT.d * arScale); fp.rotation.y = arYaw; }
+async function arSupported() { try { return !!(navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')); } catch { return false; } }
+function showHint(html, toast = false, ms = 0) {
+  const h = $('#hint'); h.innerHTML = html; h.classList.toggle('toast', toast); h.hidden = false;
+  clearTimeout(showHint._t); if (ms) showHint._t = setTimeout(() => { h.hidden = true; }, ms);
+}
+$('#btnAR').onclick = async () => {
+  if (!(await arSupported())) {
+    showHint('<b>AR is not available here</b>Open the hosted link on an Android phone in Chrome. Here, use the 3D view: drag to orbit, pinch or scroll to zoom, tap a zone.', false, 7000);
+    return;
+  }
+  try {
+    xrSession = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: $('#ui') } });
+  } catch (e) { showHint('<b>Could not start AR</b>' + (e.message || e), false, 6000); return; }
+  renderer.xr.setReferenceSpaceType('local');
+  await renderer.xr.setSession(xrSession);
+  const viewer = await xrSession.requestReferenceSpace('viewer');
+  hitSource = await xrSession.requestHitTestSource({ space: viewer });
+  xrSession.addEventListener('end', onAREnd);
+  document.body.classList.add('ar');
+  world.visible = false; placed = false; shadowCatcher.visible = true;
+  labelScale = 1.6; setFootprint(); camera.clearViewOffset();
+  $('#arbar').hidden = true;
+  showHint('<b>Find a table</b>Move the phone slowly over a flat, textured surface. Tap when the green outline sits where you want the pod.');
+};
+$('#btnExitAR').onclick = () => xrSession && xrSession.end();
+function onAREnd() {
+  hitSource = null; xrSession = null; placed = false;
+  document.body.classList.remove('ar'); reticle.visible = false; $('#hint').hidden = true;
+  world.visible = true; world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); world.scale.setScalar(1); shadowCatcher.visible = false;
+  labelScale = 1; renderer.setSize(innerWidth, innerHeight); frameAroundCard();
+}
+for (const el of document.querySelectorAll('#ui .hit')) el.addEventListener('beforexrselect', (e) => e.preventDefault());
+const controller = renderer.xr.getController(0); scene.add(controller);
+controller.addEventListener('select', () => {
+  if (!renderer.xr.isPresenting) return;
+  if (!placed) {
+    if (!reticle.visible) return;
+    world.position.setFromMatrixPosition(reticle.matrix); world.scale.setScalar(arScale); world.rotation.set(0, arYaw, 0);
+    world.visible = true; placed = true; reticle.visible = false; $('#arbar').hidden = false;
+    showHint('Tap a label or a zone. Walk around the table to look closer.', true, 4500);
+    return;
+  }
+  const m = new THREE.Matrix4().extractRotation(controller.matrixWorld);
+  ray.ray.origin.setFromMatrixPosition(controller.matrixWorld); ray.ray.direction.set(0, 0, -1).applyMatrix4(m);
+  ray.camera = renderer.xr.getCamera();
+  pickWithRay();
+});
+$('#arSmaller').onclick = () => { arScale = Math.max(1 / 160, arScale / 1.25); world.scale.setScalar(arScale); setFootprint(); };
+$('#arBigger').onclick = () => { arScale = Math.min(1 / 6, arScale * 1.25); world.scale.setScalar(arScale); setFootprint(); };
+$('#arRotL').onclick = () => { arYaw += Math.PI / 12; world.rotation.y = arYaw; setFootprint(); };
+$('#arRotR').onclick = () => { arYaw -= Math.PI / 12; world.rotation.y = arYaw; setFootprint(); };
+$('#arMove').onclick = () => { placed = false; world.visible = false; $('#arbar').hidden = true; showHint('<b>Move the pod</b>Point at a new spot and tap.', false); };
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock();
+const DT_MAX = TEST ? 2 : 0.1;
+if (TEST) window.__ml = { S, P, SET, MIXD, updatePress, startPress, startBatch, startGrading, mixTank, select, openSheet, startTour, tourGo, T, step: null, freeze: false };
+function simStep(dt) {
+  updateBatch(dt); tickDrying(dt); updateGrader(dt); updateMixer(dt); updatePress(dt);
+  for (const f of Object.values(FLOWS)) f.update(dt);
+  updateBags(dt); updateTank(dt);
+}
+if (TEST) window.__ml.step = (sec, h = 0.05) => { for (let x = 0; x < sec; x += h) simStep(h); };
+let uiT = 0, camLocalPos = null;
+const perf = { acc: 0, n: 0 };
+function adaptQuality(dt) {   // drop resolution when frames get slow, raise it again when there is headroom
+  if (TEST || renderer.xr.isPresenting) return;
+  perf.acc += dt; perf.n++;
+  if (perf.acc < 2) return;
+  const avg = perf.acc / perf.n; perf.acc = 0; perf.n = 0;
+  let next = pixelRatio;
+  if (avg > 1 / 28 && pixelRatio > 0.75) next = pixelRatio - 0.25;
+  else if (avg < 1 / 50 && pixelRatio < PR_MAX) next = Math.min(PR_MAX, pixelRatio + 0.25);
+  if (next !== pixelRatio) { pixelRatio = next; renderer.setPixelRatio(pixelRatio); renderer.setSize(innerWidth, innerHeight); }
+}
+renderer.setAnimationLoop((time, frame) => {
+  const dt = Math.min(clock.getDelta(), DT_MAX), sdt = TEST && window.__ml.freeze ? 0 : dt;   // sdt drives the simulation
+  if (frame && hitSource && !placed) {
+    const res = frame.getHitTestResults(hitSource);
+    if (res.length) {
+      reticle.visible = true; reticle.matrix.fromArray(res[0].getPose(renderer.xr.getReferenceSpace()).transform.matrix);
+      if (!$('#hint').hidden && !$('#hint').classList.contains('toast')) showHint('<b>Tap to place</b>The outline shows the pod’s footprint.', false);
+    } else reticle.visible = false;
+  }
+  if (fly) {
+    fly.t += dt / fly.dur; const k = ease(Math.min(1, fly.t));
+    camera.position.lerpVectors(fly.p0, fly.p1, k); controls.target.lerpVectors(fly.t0, fly.t1, k);
+    if (fly.t >= 1) fly = null;
+  }
+  for (const r of Object.values(roofParts)) {
+    const cur = r.mesh.userData.k || 0, k = cur + (r.lift - cur) * Math.min(1, dt * 6);
+    r.mesh.userData.k = k; r.mesh.position.y = r.y0 + k * 2.6; r.mesh.material.opacity = 1 - k * 0.75; r.mesh.material.depthWrite = k < 0.5;
+  }
+  if (site) {
+    simStep(sdt); updateScreens(dt);
+    const camLocal = camLocalPos = site.worldToLocal((renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(new THREE.Vector3()));
+    if (labels.visible) {
+      for (const sp of labels.children) { const k = Math.min(1, Math.max(0.16, camLocal.distanceTo(sp.position) / 30)); const h = 1.0 * labelScale * k; sp.scale.set(h * sp.userData.aspect, h, 1); }
+    }
+    uiT -= dt;
+    updateTour(sdt);
+    if (uiT <= 0) {
+      uiT = 0.1; updateStatus();
+      if (sheet) SHEETS[sheet].tick && SHEETS[sheet].tick();
+      else if (selected && ZONES[selected].panel && !$('#card').hidden) PANELS[ZONES[selected].panel].tick();
+    }
+    adaptQuality(dt);
+  }
+  if (bracket.visible) bracketMat.opacity = 0.55 + 0.4 * Math.sin(time * 0.005);
+  if (!renderer.xr.isPresenting) controls.update();
+  renderer.render(scene, camera);
+});
+addEventListener('resize', () => {
+  if (renderer.xr.isPresenting) return;
+  camera.aspect = innerWidth / innerHeight; renderer.setSize(innerWidth, innerHeight); frameAroundCard();
+});
+addEventListener('load', () => { const h = location.hash.slice(1); if (ZONES[h]) { const w = setInterval(() => { if (site) { clearInterval(w); select(h); } }, 100); } });
+</script>
+</body></html>
