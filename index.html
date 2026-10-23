@@ -37,7 +37,12 @@ body {
   margin: 0; overflow: hidden; color: var(--fg); font-family: var(--body); font-size: 14px;
   background: radial-gradient(120% 90% at 50% 30%, var(--stage-1), var(--stage-2));
 }
-body.ar { background: transparent; }
+body.ar, body.cam { background: transparent; }
+#camfeed { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -1; background: #000; }
+.hint .ctrl { justify-content: center; margin-top: 10px; }
+.hint ol { text-align: left; margin: 8px 0 0; padding-left: 1.2em; font-size: 13px; color: var(--text); }
+.hint ol li { margin: 4px 0; }
+.hint ol strong { font-weight: 600; color: var(--fg); }
 #stage { position: fixed; inset: 0; }
 #stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 
@@ -101,6 +106,8 @@ body.ar { background: transparent; }
   width: 384px; max-width: calc(100% - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
   display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(6px);
 }
+.card.enter { animation: cardIn .32s cubic-bezier(.2,.8,.2,1); }
+@keyframes cardIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
 .tag { font: 700 12px/1 var(--display); letter-spacing: .14em; color: var(--accent); text-transform: uppercase; }
 .card h2 { margin: 5px 0 0; font: 700 26px/1.05 var(--display); letter-spacing: .01em; text-wrap: balance; }
@@ -196,10 +203,18 @@ hr.sep { border: 0; border-top: 1px solid var(--line); margin: 2px 0; width: 100
 .hint.toast { top: auto; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); padding: 10px 14px; font-size: 13px; }
 .arbar { position: absolute; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top, 0px)); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 32px); }
 .arbar .btn { padding: 8px 10px; min-height: 36px; }
+#gest { position: absolute; inset: 0; pointer-events: none; }
+body.ar #gest { pointer-events: auto; }
+body.ar .status { display: none !important; }
+body.ar .arbar, body.cam .arbar { top: auto; bottom: calc(62px + env(safe-area-inset-bottom, 0px)); flex-wrap: nowrap; gap: 5px; }
+body.ar .arbar .btn, body.cam .arbar .btn { min-height: 34px; padding: 6px 10px; font-size: 12px; }
+body.ar .hint.toast, body.cam .hint.toast { bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
+body.clean .actions > .btn:not(#btnClean), body.clean .rail, body.clean .arbar, body.clean .status, body.clean .card, body.clean .hint { display: none !important; }
+body.clean #btnClean { opacity: .55; }
 #loading { position: absolute; inset: 0; display: grid; place-items: center; font: 600 14px var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 
-body:not(.ar) .ar-only { display: none !important; }
-body.ar .desk-only { display: none !important; }
+body:not(.ar):not(.cam) .ar-only { display: none !important; }
+body.ar .desk-only, body.cam .desk-only { display: none !important; }
 
 /* tour bar (lower third) */
 .tourbar {
@@ -234,25 +249,26 @@ body.tour .rail, body.tour .card { display: none !important; }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .legend span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
 
-@media (max-width: 1000px) { .status { top: auto; left: 50%; transform: translateX(-50%); justify-content: center; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px); } body.card-open .status, body.tour .status { display: none; } }
+@media (max-width: 1000px) { .status { top: auto; left: 50%; transform: translateX(-50%); justify-content: center; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); max-width: calc(100% - 32px); } body.card-open .status, body.tour .status, body.ar .status, body.cam .status { display: none; } }
 @media (max-width: 720px) {
   .brand b { font-size: 19px; }
   .brand span { display: none; }
   .btn .lbl { display: none; }
-  .actions { gap: 5px; }
-  .actions > .btn { padding: 8px 8px; min-height: 36px; }
+  .actions { gap: 4px; flex-wrap: nowrap; }
+  .actions > .btn { padding: 7px 7px; min-height: 34px; }
   .tourbar h3 { font-size: 20px; } .tourbar p { font-size: 12.5px; }
   .card { left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; max-width: none; top: auto; max-height: 58%; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
   .card h2 { font-size: 22px; }
   .arbar { top: auto; bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
   body.ar.card-open .arbar { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .toggle span::after { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .toggle span::after { transition: none; } .card.enter { animation: none; } }
 </style></head><body>
 
 <div id="stage"></div>
 
 <div id="ui">
+  <div id="gest"></div>
   <div id="loading">Loading pod model…</div>
 
   <header class="top">
@@ -270,6 +286,8 @@ body.tour .rail, body.tour .card { display: none !important; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg><span class="lbl">Labels</span></button>
       <button class="btn desk-only" id="btnReset" type="button" title="Back to the full site view">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Full site</span></button>
+      <button class="btn" id="btnClean" type="button" aria-pressed="false" title="Hide the controls for a clean recording">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span class="lbl">Clean view</span></button>
       <button class="btn ar-only" id="btnExitAR" type="button">Exit AR</button>
     </div>
   </header>
@@ -315,6 +333,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { XREstimatedLight } from 'three/addons/webxr/XREstimatedLight.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const TEST = /[?&]test\b/.test(location.search);   // ?test: hooks for headless checks
@@ -367,7 +386,7 @@ const ZONES = {
   Z6: { tag: 'Z6', label: 'Curing', title: 'Curing yard', zone: 'ZONE_Z6_Curing', view: [6, 6, 8],
     what: 'Fresh blocks cure on a slab under a mist line fed with recovered grade B water.',
     specs: ['Mist line runs on recovered water', 'Blocks stacked in rows while they gain strength'] },
-  Z7: { tag: 'Z7', label: 'Stock & dispatch', title: 'Stock & dispatch', zone: 'ZONE_Z7_Stock', view: [7, 6, 9],
+  Z7: { tag: 'Z7', label: 'Stock & dispatch', title: 'Stock & dispatch', zone: 'ZONE_Z7_Stock', view: [6.5, 5.5, 9], panel: 'stock',
     what: 'Cured blocks are stacked on pallets and leave by truck on the road the plant already uses.',
     specs: ['Pallets of finished blocks', 'About 7,500 blocks a month (team financial model estimate)'] },
 };
@@ -402,7 +421,7 @@ controls.target.copy(HOME.target);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI * 0.47; controls.minDistance = 1.5; controls.maxDistance = 90;
 
-scene.add(new THREE.HemisphereLight(0xdfeaf5, 0x5a4a38, 0.9));
+const hemi = new THREE.HemisphereLight(0xdfeaf5, 0x5a4a38, 0.9); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff3e0, 2.3);
 sun.position.set(-14, 30, 18); sun.castShadow = true;
 sun.shadow.mapSize.set(COARSE ? 1024 : 2048, COARSE ? 1024 : 2048);
@@ -462,7 +481,7 @@ loadModel((gltf) => {
     }
   }
   buildLabels(); site.add(labels);
-  setupFlows(); setupBags(); setupTank(); setupGrader(); setupPress(); setupScreens();
+  setupFlows(); setupBags(); setupTank(); setupGrader(); setupPress(); setupScreens(); setupParticles(); setupTruck(); arMaterials();
   buildRail();
   $('#loading').remove();
   if (TEST) window.__ml.ready = true;
@@ -513,17 +532,17 @@ const bracketMat = new THREE.MeshBasicMaterial({ color: 0x3fe08c, transparent: t
 const bracket = new THREE.Group(); bracket.visible = false;
 function setBracket(box) {
   bracket.clear();
-  const m = 0.45, x0 = box.min.x - m, x1 = box.max.x + m, z0 = box.min.z - m, z1 = box.max.z + m;
+  const m = 0.45, x0 = box.min.x - m, x1 = box.max.x + m, z0 = box.min.z - m, z1 = box.max.z + m, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
   const len = Math.min(2.2, (x1 - x0) / 3, (z1 - z0) / 3), t = 0.14, y = 0.2;
-  const bar = (cx, cz, sx, sz) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.05, sz), bracketMat); b.position.set(cx, y, cz); b.renderOrder = 5; bracket.add(b); };
+  const bar = (px, pz, sx, sz) => { const b = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.05, sz), bracketMat); b.position.set(px - cx, y, pz - cz); b.renderOrder = 5; bracket.add(b); };
   for (const [x, dx] of [[x0, 1], [x1, -1]]) for (const [z, dz] of [[z0, 1], [z1, -1]]) { bar(x + dx * len / 2, z, len, t); bar(x, z + dz * len / 2, t, len); }
-  bracket.visible = true;
+  bracket.position.set(cx, 0, cz); bracket.userData.t = 0; bracket.visible = true;
 }
 
 /* ---------- camera fly ---------- */
 let fly = null;
-function flyTo(pos, target, dur = 1.0) {
-  if (renderer.xr.isPresenting) return;
+function flyTo(pos, target, dur = 1.5) {
+  if (renderer.xr.isPresenting || CAM.on) return;
   fly = { p0: camera.position.clone(), t0: controls.target.clone(), p1: pos.clone(), t1: target.clone(), t: 0, dur: REDUCED ? 0.01 : dur };
 }
 
@@ -531,42 +550,97 @@ function flyTo(pos, target, dur = 1.0) {
    FLOW BEADS along the pipe centre-lines
    ===================================================================== */
 const FLOWS = {};
-class Flow {
-  constructor(pts, color, n, speed, r = 0.075) {
-    this.pts = pts.map((p) => new THREE.Vector3(...p)); this.cum = [0];
-    for (let i = 1; i < this.pts.length; i++) this.cum.push(this.cum[i - 1] + this.pts[i].distanceTo(this.pts[i - 1]));
-    this.len = this.cum[this.cum.length - 1]; this.n = n; this.speed = speed; this.off = 0; this.on = false; this.k = 0;
-    const mat = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.9, roughness: 0.4 });
-    this.mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(r, 10, 8), mat, n); this.mesh.frustumCulled = false; this.mesh.visible = false;
-    this.m = new THREE.Matrix4(); this.p = new THREE.Vector3();
-  }
-  at(d, out) {
-    let i = 1; while (i < this.cum.length - 1 && this.cum[i] < d) i++;
-    const t = (d - this.cum[i - 1]) / Math.max(1e-6, this.cum[i] - this.cum[i - 1]);
-    return out.lerpVectors(this.pts[i - 1], this.pts[i], clamp01(t));
+const PIPE_R = { Pipe_sludge_in: 0.07, Pipe_tank_bags: 0.06, Pipe_dose: 0.018, Pipe_drain: 0.05, Pipe_to_valve: 0.05, Pipe_A_to_plant: 0.06, Pipe_B_to_curing: 0.05, Pipe_C_return: 0.045, Pipe_plant_to_pit: 0.08 };
+const STRIPE = (() => {   // soft dash: bright head, fading tail, gap
+  const c = document.createElement('canvas'); c.width = 128; c.height = 4; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 128, 0);
+  gr.addColorStop(0, 'rgba(255,255,255,0)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.35)'); gr.addColorStop(0.78, 'rgba(255,255,255,1)'); gr.addColorStop(0.8, 'rgba(255,255,255,0)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 4); return c;
+})();
+class Flow {   // a glowing sleeve over the pipe with stripes running in the flow direction
+  constructor(pts, color, speed, r) {
+    const path = new THREE.CurvePath(); const V = pts.map((p) => new THREE.Vector3(...p));
+    for (let i = 1; i < V.length; i++) path.add(new THREE.LineCurve3(V[i - 1], V[i]));
+    this.len = path.getLength(); this.speed = speed; this.on = false; this.k = 0;
+    const tex = new THREE.CanvasTexture(STRIPE); tex.wrapS = THREE.RepeatWrapping; tex.repeat.set(Math.max(1, this.len / 0.55), 1); tex.colorSpace = THREE.SRGBColorSpace;
+    this.tex = tex;
+    const mat = new THREE.MeshBasicMaterial({ color, map: tex, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+    this.mesh = new THREE.Mesh(new THREE.TubeGeometry(path, Math.max(24, Math.ceil(this.len * 10)), r * 1.45, 10, false), mat);
+    this.mesh.visible = false; this.mesh.renderOrder = 3;
   }
   update(dt) {
-    this.k += ((this.on ? 1 : 0) - this.k) * Math.min(1, dt * 4);
-    this.mesh.visible = this.k > 0.02; if (!this.mesh.visible) return;
-    this.off = (this.off + this.speed * dt) % this.len;
-    for (let i = 0; i < this.n; i++) {
-      const d = (this.off + (i / this.n) * this.len) % this.len;
-      this.at(d, this.p); this.m.makeScale(this.k, this.k, this.k).setPosition(this.p); this.mesh.setMatrixAt(i, this.m);
-    }
-    this.mesh.instanceMatrix.needsUpdate = true;
+    this.k += ((this.on ? 1 : 0) - this.k) * Math.min(1, dt * 3);
+    this.mesh.visible = this.k > 0.01; if (!this.mesh.visible) return;
+    this.mesh.material.opacity = 0.95 * this.k;
+    this.tex.offset.x -= (this.speed * dt) / 0.55;
   }
 }
 function setupFlows() {
   const P = window.MINELOOP_PATHS || {};
-  const def = { sludgeIn: ['Pipe_sludge_in', 0xc98a4b, 9, 1.6], tankBags: ['Pipe_tank_bags', 0xc98a4b, 9, 1.4], dose: ['Pipe_dose', 0x9ccf6a, 6, 0.8, 0.045],
-    drain: ['Pipe_drain', 0x3d9be8, 4, 0.7], toValve: ['Pipe_to_valve', 0x3d9be8, 3, 0.7], A: ['Pipe_A_to_plant', 0x3d9be8, 22, 2.6],
-    B: ['Pipe_B_to_curing', 0x9fd3ff, 16, 2.2], C: ['Pipe_C_return', 0x9a6a3a, 14, 2.0], plant: ['Pipe_plant_to_pit', 0xc98a4b, 6, 1.2] };
-  for (const [k, [name, col, n, sp, r]] of Object.entries(def)) {
+  const def = { sludgeIn: ['Pipe_sludge_in', 0xffb066, 1.5], tankBags: ['Pipe_tank_bags', 0xffb066, 1.3], dose: ['Pipe_dose', 0xb8f07a, 0.7],
+    drain: ['Pipe_drain', 0x6cc0ff, 0.6], toValve: ['Pipe_to_valve', 0x6cc0ff, 0.6], A: ['Pipe_A_to_plant', 0x4aa3ff, 2.4],
+    B: ['Pipe_B_to_curing', 0xbfe6ff, 2.0], C: ['Pipe_C_return', 0xd08a4c, 1.8], plant: ['Pipe_plant_to_pit', 0xffb066, 1.1] };
+  for (const [k, [name, col, sp]] of Object.entries(def)) {
     if (!P[name]) continue;
-    const f = new Flow(P[name], col, n, sp, r); FLOWS[k] = f; site.add(f.mesh);
+    const f = new Flow(P[name], col, sp, PIPE_R[name] || 0.05); FLOWS[k] = f; site.add(f.mesh);
   }
+  for (let i = 0; i < 4; i++) { const n = 'Bag_drop_' + i; if (P[n]) { const f = new Flow(P[n], 0xffb066, 0.9, 0.03); FLOWS['drop' + i] = f; site.add(f.mesh); } }
   if (FLOWS.plant) FLOWS.plant.on = true;
 }
+
+/* =====================================================================
+   PARTICLES: drips under draining bags, mist over the curing yard, dust at the press
+   ===================================================================== */
+const SOFT = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+class Puffs {
+  constructor(n, color, size, opacity = 0.8) {
+    this.n = n; this.p = []; const pos = new Float32Array(n * 3), al = new Float32Array(n);
+    for (let i = 0; i < n; i++) this.p.push({ x: 0, y: -99, z: 0, vx: 0, vy: 0, vz: 0, life: 0, max: 1 });
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('alpha', new THREE.BufferAttribute(al, 1));
+    const mat = new THREE.ShaderMaterial({ transparent: true, depthWrite: false,
+      uniforms: { map: { value: SOFT }, color: { value: new THREE.Color(color) }, size: { value: size }, op: { value: opacity }, scale: { value: 1 } },
+      vertexShader: 'attribute float alpha; varying float vA; uniform float size; uniform float scale; void main(){ vA = alpha; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = size * scale * 300.0 / -mv.z; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform sampler2D map; uniform vec3 color; uniform float op; varying float vA; void main(){ vec4 t = texture2D(map, gl_PointCoord); gl_FragColor = vec4(color, t.a * vA * op); }' });
+    this.pts = new THREE.Points(g, mat); this.pts.frustumCulled = false; this.pts.renderOrder = 4; this.i = 0;
+  }
+  emit(x, y, z, vx, vy, vz, life) { const q = this.p[this.i]; this.i = (this.i + 1) % this.n; Object.assign(q, { x, y, z, vx, vy, vz, life, max: life }); }
+  update(dt, gravity = 0, floor = -99) {
+    const pos = this.pts.geometry.attributes.position.array, al = this.pts.geometry.attributes.alpha.array;
+    this.pts.material.uniforms.scale.value = world.scale.x * innerHeight * 1.2 * renderer.getPixelRatio() / 300;
+    this.p.forEach((q, i) => {
+      if (q.life > 0) { q.life -= dt; q.vy -= gravity * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt; if (q.y < floor) q.life = 0; }
+      pos[i * 3] = q.x; pos[i * 3 + 1] = q.life > 0 ? q.y : -99; pos[i * 3 + 2] = q.z;
+      al[i] = q.life > 0 ? Math.min(1, (q.life / q.max) * 2) * Math.min(1, (q.max - q.life) * 6) : 0;
+    });
+    this.pts.geometry.attributes.position.needsUpdate = true; this.pts.geometry.attributes.alpha.needsUpdate = true;
+  }
+}
+let drips, mist, dust, mistAcc = 0;
+function setupParticles() {
+  drips = new Puffs(160, 0x7fc4ff, 0.05, 0.9); mist = new Puffs(220, 0xe9f5ff, 0.55, 0.35); dust = new Puffs(60, 0xcfc6b4, 0.45, 0.6);
+  site.add(drips.pts); site.add(mist.pts); site.add(dust.pts);
+}
+function updateParticles(dt) {
+  if (!drips) return;
+  BAG.forEach((B, i) => {
+    const b = S.bags[i], m = moistOf(b), filling = S.batch.running && S.batch.bag === i;
+    const rate = filling ? 30 : (m != null && m > SET.moistReady ? 14 * clamp01((m - SET.moistReady) / 30) : 0);
+    if (rate <= 0) return;
+    const n = Math.floor(rate * dt + Math.random());
+    for (let k = 0; k < n; k++) {
+      const bot = B.m.position.y - B.m.scale.y * 0.95;
+      drips.emit(B.m.position.x + (Math.random() - 0.5) * B.m.scale.x * 0.9, bot, B.m.position.z + (Math.random() - 0.5) * B.m.scale.z * 1.5, 0, -0.2, 0, 1.2);
+    }
+  });
+  drips.update(dt, 4.5, 0.13);
+  const misting = (FLOWS.B && FLOWS.B.k > 0.2) || selected === 'Z6';
+  if (misting) { mistAcc += dt * 60; while (mistAcc > 1) { mistAcc--; mist.emit(L(11.2 + Math.random() * 5.6, 13, 0).x, 1.45, L(0, 13, 0).z + (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.15, -0.25, (Math.random() - 0.5) * 0.35, 2.6); } }
+  mist.update(dt, -0.05, 0.12);
+  dust.update(dt, -0.15);
+}
+function dustPuff(at, n = 18) { if (!dust) return; for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, sp = 0.2 + Math.random() * 0.4; dust.emit(at.x, at.y + 0.02, at.z, Math.cos(a) * sp, 0.15 + Math.random() * 0.2, Math.sin(a) * sp, 1.2 + Math.random() * 0.6); } }
 
 /* =====================================================================
    SHARED POD STATE
@@ -642,6 +716,7 @@ function updateBags(dt) {
     const f = B.shown.fill, m = moistOf(b);
     const shrink = m == null ? 1 : 0.62 + 0.38 * Math.pow(weightOf(b) / (DRY.solidsKg / (1 - DRY.m0 / 100)), 0.7);
     const sc = new THREE.Vector3(lerp(EMPTY_SC.x, B.full.x * shrink, f), lerp(EMPTY_SC.y, B.full.y * (0.55 + 0.45 * shrink), f), lerp(EMPTY_SC.z, B.full.z, f));
+    if (S.batch.running && S.batch.bag === i) { const w = Math.sin(performance.now() / 110) * 0.035 * (1 - f * 0.6); sc.x *= 1 + w; sc.y *= 1 - w * 0.6; }
     B.m.scale.copy(sc); B.m.position.y = B.top - sc.y * 0.86;
     const dryness = m == null ? (f > 0.05 ? 0 : 1) : clamp01((DRY.m0 - m) / (DRY.m0 - DRY.mInf));
     B.m.material.color.copy(WET).lerp(DRYC, dryness);
@@ -713,7 +788,7 @@ function updateTank(dt) {
   if (N.Tank_lid) N.Tank_lid.visible = !open;
   fx.g.visible = open || t.material.opacity < 0.95;
   const stir = N.Tank_stirrer; const stirring = fx.mixing > 0 || S.batch.running;
-  if (stir) stir.rotation.y += dt * (stirring ? 12 : 0);
+  if (stir) { const w = stir.userData.w || 0; stir.userData.w = w + ((stirring ? 12 : 0) - w) * Math.min(1, dt * 1.6); stir.rotation.y += stir.userData.w * dt; }
   const q = doseQuality(), H = TANK.h * Math.max(0.05, S.tankLevel);
   if (fx.mixing > 0) fx.mixing -= dt;
   if (fx.settling) fx.t += dt;
@@ -813,7 +888,7 @@ function updateGrader(dt) {
   }
   for (const g of ['A', 'B', 'C']) if (FLOWS[g]) FLOWS[g].on = W.running && W.grade === g;
   const v = N.Valve_3way;
-  if (v && W.grade !== '-') { const target = VALVE_ANG[W.grade]; v.rotation.y += (target - v.rotation.y) * Math.min(1, dt * 5); }
+  if (v && W.grade !== '-') { const target = VALVE_ANG[W.grade]; const h = Math.min(dt, 0.05); const vel = (v.userData.vel || 0) + ((target - v.rotation.y) * 60 - (v.userData.vel || 0) * 9) * h; v.userData.vel = vel; v.rotation.y += vel * h; }
   const gw = N.Grader_water;
   if (gw) { const k = clamp01((W.ntu - 30) / 300); gw.material.color.set('#2a72ad').lerp(new THREE.Color('#7a5a3a'), W.running ? k : 0); }
 }
@@ -839,8 +914,9 @@ function mixBatch() {
 }
 function updateMixer(dt) {
   const mx = N.Mixer_drum, hop = N.Weigh_hopper;
+  if (mx) { const w = mx.userData.w || 0; mx.userData.w = w + ((S.mixT > 0.4 ? 9 : 0) - w) * Math.min(1, dt * 1.5); mx.rotateY(mx.userData.w * dt); }
   if (S.mixT > 0) {
-    S.mixT -= dt; if (mx) mx.rotateY(dt * 9);
+    S.mixT -= dt;
     if (hop) { hop.userData.x0 = hop.userData.x0 ?? hop.position.x; hop.position.x = hop.userData.x0 + Math.sin(S.mixT * 60) * 0.01; }
     if (S.mixT <= 0) { S.mixKg = 200; if (hop) hop.position.x = hop.userData.x0; logEvent('Batch mixed and weighed: 200 kg ready for the press.', 'ok'); }
   }
@@ -873,7 +949,7 @@ function startPress() {
   if (P.running || !blocks) return;
   if (S.mixKg < 14) { logEvent('Press waiting: mix a new 200 kg batch first.', 'bad'); renderPanel(); return; }
   P.mixIdx = mixIndex();
-  Object.assign(P, { running: true, t: 0, trace: [], peak: 0, result: null, curFault: P.fault });
+  Object.assign(P, { running: true, t: 0, trace: [], peak: 0, result: null, curFault: P.fault, puff1: false, puff2: false });
   P.charge = P.curFault ? 11.6 + Math.random() * 0.5 : 14.2 + Math.random() * 0.4;     // kg per stroke (4 blocks), placeholder
   P.dens = densityOf(P.mixIdx) - (P.curFault ? 0.3 : 0) + (Math.random() - 0.5) * 0.03;
   S.mixKg = Math.max(0, S.mixKg - P.charge);
@@ -909,7 +985,10 @@ function updatePress(dt) {
   // mould strips upward, blocks slide onto the out-feed board, mould comes down, blocks go to the pallet / reject spot
   if (t >= PH.strip[0] && t < PH.down[1]) lift = t < PH.out[1] ? ease(seg(t, ...PH.strip)) * 0.17 : (1 - ease(seg(t, ...PH.down))) * 0.17;
   const dz = PR.headRest - head;
-  for (const n of [pl, rod, lc]) if (n) n.position.y = n.userData.p0.y - dz;
+  const shake = force > SET.pressKN * 0.8 ? (Math.random() - 0.5) * 0.004 : 0;
+  for (const n of [pl, rod, lc]) if (n) n.position.y = n.userData.p0.y - dz + shake;
+  if (!P.puff1 && t >= PH.strip[0]) { P.puff1 = true; dustPuff(L(PR.cx, PR.cy, PR.table + 0.05), 22); }
+  if (!P.puff2 && t >= PH.stack[1] - 0.15) { P.puff2 = true; dustPuff(P.result === 'fail' ? L(13.9, 5.95, 0.2) : L(PR.cx, 6.3, 0.3), 14); }
   if (mould) mould.position.y = mould.userData.p0.y + lift;
   if (feed) feed.position.z = feed.userData.p0.z + feedK * PR.feedTravel;
   const base = L(PR.cx, PR.cy, PR.table);
@@ -942,6 +1021,54 @@ function finishPress() {
   logEvent(`Press stroke #${String(P.n).padStart(3, '0')}: ${pass ? 'PASS' : 'REJECT (' + P.reason + ')'} at ${P.peak.toFixed(0)} kN, ${P.dens.toFixed(2)} g/cm³.`, pass ? 'ok' : 'bad');
   renderPanel();
 }
+
+/* =====================================================================
+   Z7 TRUCK DISPATCH: a pallet goes on the truck, it drives off and comes back
+   ===================================================================== */
+const TR = { g: null, wheels: [], mats: [], t: -1, loads: [], cargo: null, sent: 0, blocks: 0 };
+function setupTruck() {
+  const parts = Object.entries(N).filter(([n, o]) => n.startsWith('Truck_') && o.isMesh).map(([, o]) => o);
+  if (!parts.length) return;
+  TR.g = new THREE.Group(); site.add(TR.g);
+  for (const o of parts) {
+    TR.g.attach(o);
+    o.material = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
+    for (const m of [].concat(o.material)) TR.mats.push(m);
+    if (o.name.startsWith('Truck_wheel')) TR.wheels.push(o);
+  }
+  TR.loads = Object.entries(N).filter(([n, o]) => n.startsWith('Pallet_load_') && o.isMesh).sort(([a], [b]) => (a < b ? 1 : -1)).map(([, o]) => o);
+  for (const o of TR.loads) o.userData.home = o.position.clone();
+}
+function truckFade(a) { for (const m of TR.mats) { m.transparent = a < 0.999; m.opacity = a; m.depthWrite = a > 0.5; } }
+function dispatchTruck() {
+  if (!TR.g || TR.t >= 0) return;
+  const load = TR.loads.find((o) => o.visible);
+  if (!load) { logEvent('No pallets left in the yard. Press Restock to bring them back.', 'bad'); return; }
+  TR.cargo = load; TR.t = 0;
+  // move the load so its footprint centre lands on the middle of the truck deck (deck top 0.98 m)
+  const inv = new THREE.Matrix4().copy(site.matrixWorld).invert();
+  const b = new THREE.Box3().setFromObject(load).applyMatrix4(inv), c = b.getCenter(new THREE.Vector3());
+  const deck = L(23.8, 12.6, 0.99);
+  TR.from = load.position.clone(); TR.to = load.position.clone().add(new THREE.Vector3(deck.x - c.x, deck.y - b.min.y, deck.z - c.z));
+  logEvent('Loading a pallet of 189 blocks onto the truck.');
+}
+function updateTruck(dt) {
+  if (!TR.g || TR.t < 0) return;
+  TR.t += dt; const t = TR.t, load = TR.cargo;
+  if (t < 1.8) { const p = ease(clamp01(t / 1.8)); load.position.lerpVectors(TR.from, TR.to, p); load.position.y += Math.sin(p * Math.PI) * 1.3; }
+  else if (load.parent !== TR.g && t < 7.2) { load.position.copy(TR.to); TR.g.attach(load); logEvent('Truck leaving for the buyer on the plant road.'); }
+  let z = 0;
+  if (t >= 2.2 && t < 7.2) { const p = clamp01((t - 2.2) / 5); z = -24 * p * p; truckFade(t > 6.2 ? Math.max(0, 1 - (t - 6.2)) : 1); }
+  else if (t >= 7.2 && t < 7.6) {
+    z = -24; truckFade(0);
+    if (load.parent === TR.g) { load.removeFromParent(); TR.g.parent.add(load); load.visible = false; load.position.copy(load.userData.home); TR.sent++; TR.blocks += 189; }
+  }
+  else if (t >= 7.6 && t < 10.6) { const p = clamp01((t - 7.6) / 3); z = 5 * Math.pow(1 - p, 3); truckFade(Math.min(1, p * 2)); }
+  else if (t >= 10.6) { z = 0; truckFade(1); TR.t = -1; logEvent(`Truck back. ${TR.sent} dispatched so far, ${fmt(TR.blocks)} blocks.`, 'ok'); renderPanel(); }
+  const prev = TR.g.position.z; TR.g.position.z = z;
+  for (const w of TR.wheels) w.rotation.x += (z - prev) / 0.45;
+}
+function restock() { for (const o of TR.loads) { o.visible = true; o.position.copy(o.userData.home); } logEvent('Yard restocked with nine pallets.'); }
 
 /* =====================================================================
    SCREENS on the controller and the press panel (live canvas textures)
@@ -1000,6 +1127,26 @@ const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strok
 const PH_NOTE = (what) => `<div class="note"><b>Placeholder</b> ${what} until the team's test data replaces it.</div>`;
 
 const PANELS = {
+  stock: {
+    html: () => `<section class="panel" aria-label="Dispatch">
+      <div class="panel-top"><h3>Dispatch</h3><span class="led" id="trLed" data-s="idle">Truck parked</span></div>
+      <div class="reads">
+        <div class="read"><small>Pallets in yard</small><b id="trStock">–</b></div>
+        <div class="read"><small>Trucks sent</small><b id="trSent">0</b></div>
+        <div class="read"><small>Blocks sent</small><b id="trBlocks">0</b></div>
+      </div>
+      <div class="ctrl"><button class="btn primary" id="trGo" type="button">Load &amp; dispatch</button><button class="btn sm" id="trRe" type="button">Restock</button></div>
+      <ul class="events" id="events"></ul>
+      <div class="note">One pallet holds 189 blocks in this model (3 × 7 × 9).</div>
+    </section>`,
+    bind() { $('#trGo').onclick = dispatchTruck; $('#trRe').onclick = restock; },
+    tick() {
+      const busy = TR.t >= 0; const led = $('#trLed'); led.dataset.s = busy ? 'run' : 'idle'; led.textContent = busy ? (TR.t < 2.2 ? 'Loading' : TR.t < 7.6 ? 'On the road' : 'Returning') : 'Truck parked';
+      $('#trStock').textContent = TR.loads.filter((o) => o.visible).length; $('#trSent').textContent = TR.sent; $('#trBlocks').textContent = fmt(TR.blocks);
+      $('#trGo').disabled = busy; $('#trRe').disabled = busy;
+    },
+  },
+
   feed: {
     html: () => `
     <section class="panel" aria-label="Flocculation tank">
@@ -1288,7 +1435,7 @@ function select(id, opts = {}) {
       <ul class="specs">${z.specs.map((s) => `<li>${s}</li>`).join('')}</ul>
       ${z.soon ? `<div class="next"><h3>Coming next</h3>${z.soon.map((s) => `<div class="soon">${s}</div>`).join('')}</div>` : ''}
     </div>`;
-  card.hidden = false;
+  card.hidden = false; card.classList.remove('enter'); void card.offsetWidth; card.classList.add('enter');
   $('#cardClose').onclick = () => select(null);
   if (panel) panel.bind();
   renderEvents();
@@ -1301,7 +1448,7 @@ function select(id, opts = {}) {
 }
 function frameAroundCard() {
   const card = $('#card');
-  if (renderer.xr.isPresenting || card.hidden) { camera.clearViewOffset(); camera.updateProjectionMatrix(); return; }
+  if (renderer.xr.isPresenting || CAM.on || card.hidden) { camera.clearViewOffset(); camera.updateProjectionMatrix(); return; }
   const W = innerWidth, H = innerHeight;
   if (W >= 720) { const s = card.offsetWidth + 16; camera.setViewOffset(W + s, H, s, 0, W, H); }
   else { const s = Math.min(card.offsetHeight + 40, H * 0.5); camera.setViewOffset(W, H + s, 0, s, W, H); }
@@ -1379,7 +1526,7 @@ function openSheet(kind) {
   const sh = SHEETS[kind], card = $('#card');
   card.innerHTML = `<div class="card-head"><div><div class="tag">${sh.tag}</div><h2>${sh.title}</h2></div><button class="x" type="button" id="cardClose" aria-label="Close">${ICON_X}</button></div>
     <div class="card-body">${sh.html()}</div>`;
-  card.hidden = false; document.body.classList.add('card-open');
+  card.hidden = false; document.body.classList.add('card-open'); card.classList.remove('enter'); void card.offsetWidth; card.classList.add('enter');
   $('#cardClose').onclick = () => select(null);
   sh.bind();
   $('#btnSet').setAttribute('aria-pressed', String(kind === 'setpoints')); $('#btnFault').setAttribute('aria-pressed', String(kind === 'faults'));
@@ -1485,7 +1632,7 @@ function zoneFromHit(hit) {
 }
 function pickWithRay() {
   if (!site) return;
-  const targets = labels.visible ? [...labels.children, ...pickables] : pickables;
+  const targets = labels.visible ? [...labels.children.filter((sp) => sp.material.opacity > 0.5), ...pickables] : pickables;
   const hits = ray.intersectObjects(targets, false).filter((h) => h.object.visible && !(h.object.material && h.object.material.transparent && h.object.material.opacity < 0.5 && h.object.userData.bag == null));
   const z = hits.length ? zoneFromHit(hits[0]) : null;
   if (!z) return select(null);
@@ -1521,7 +1668,7 @@ const reticle = new THREE.Group(); reticle.matrixAutoUpdate = false; reticle.vis
   const fp = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2)), new THREE.LineBasicMaterial({ color: 0x3fe08c, transparent: true, opacity: 0.8 }));
   fp.name = 'footprint'; reticle.add(fp);
 }
-let arScale = 1 / 60, arYaw = 0, placed = false, hitSource = null, xrSession = null;
+let arScale = 1 / 75, arYaw = 0, placed = false, hitSource = null, xrSession = null;
 const FOOT = { w: 28.5, d: 32 };
 function setFootprint() { const fp = reticle.getObjectByName('footprint'); fp.scale.set(FOOT.w * arScale, 1, FOOT.d * arScale); fp.rotation.y = arYaw; }
 async function arSupported() { try { return !!(navigator.xr && await navigator.xr.isSessionSupported('immersive-ar')); } catch { return false; } }
@@ -1529,39 +1676,153 @@ function showHint(html, toast = false, ms = 0) {
   const h = $('#hint'); h.innerHTML = html; h.classList.toggle('toast', toast); h.hidden = false;
   clearTimeout(showHint._t); if (ms) showHint._t = setTimeout(() => { h.hidden = true; }, ms);
 }
+async function requestAR() {
+  // try the full setup first, then a lighter one (some phones refuse required hit-test)
+  const tries = [
+    { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay', 'local-floor', 'light-estimation'], domOverlay: { root: $('#ui') } },
+    { optionalFeatures: ['hit-test', 'dom-overlay', 'light-estimation'], domOverlay: { root: $('#ui') } },
+    { optionalFeatures: ['dom-overlay'], domOverlay: { root: $('#ui') } },
+  ];
+  let last;
+  for (const cfg of tries) { try { return await navigator.xr.requestSession('immersive-ar', cfg); } catch (e) { last = e; } }
+  throw last;
+}
+function arHelp(msg) {
+  const h = $('#hint'); h.classList.add('hit'); h.classList.remove('toast'); h.hidden = false; clearTimeout(showHint._t);
+  h.innerHTML = `<b>AR could not start</b>${msg ? `<span class="note">${msg}</span>` : ''}
+    <ol>
+      <li>Tap the icon left of the web address → <strong>Permissions</strong> → allow <strong>Camera</strong> and <strong>Augmented reality</strong> (or Chrome ⋮ → Settings → Site settings → Augmented reality → Allow). Then tap the cube again.</li>
+      <li>Install or update <strong>Google Play Services for AR</strong> from the Play Store.</li>
+      <li>If it still fails, this phone may not support Google AR. Use camera view instead.</li>
+    </ol>
+    <div class="ctrl"><button class="btn primary sm" id="hCam" type="button">Use camera view</button><button class="btn sm" id="hClose" type="button">Close</button></div>`;
+  $('#hClose').onclick = () => { h.hidden = true; h.classList.remove('hit'); };
+  $('#hCam').onclick = () => { h.hidden = true; h.classList.remove('hit'); startCamView(); };
+}
 $('#btnAR').onclick = async () => {
-  if (!(await arSupported())) {
-    showHint('<b>AR is not available here</b>Open the hosted link on an Android phone in Chrome. Here, use the 3D view: drag to orbit, pinch or scroll to zoom, tap a zone.', false, 7000);
-    return;
-  }
-  try {
-    xrSession = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['hit-test'], optionalFeatures: ['dom-overlay'], domOverlay: { root: $('#ui') } });
-  } catch (e) { showHint('<b>Could not start AR</b>' + (e.message || e), false, 6000); return; }
+  if (!(await arSupported())) { arHelp('This browser does not offer AR.'); return; }
+  try { xrSession = await requestAR(); } catch (e) { arHelp(e && e.message); return; }
   renderer.xr.setReferenceSpaceType('local');
   await renderer.xr.setSession(xrSession);
-  const viewer = await xrSession.requestReferenceSpace('viewer');
-  hitSource = await xrSession.requestHitTestSource({ space: viewer });
+  hitSource = null;
+  try { const viewer = await xrSession.requestReferenceSpace('viewer'); hitSource = await xrSession.requestHitTestSource({ space: viewer }); } catch { hitSource = null; }
   xrSession.addEventListener('end', onAREnd);
   document.body.classList.add('ar');
   world.visible = false; placed = false; shadowCatcher.visible = true;
-  labelScale = 1.6; setFootprint(); camera.clearViewOffset();
+  labelScale = 1.0; setFootprint(); camera.clearViewOffset(); arLook(true); startLightEstimate();
   $('#arbar').hidden = true;
-  showHint('<b>Find a table</b>Move the phone slowly over a flat, textured surface. Tap when the green outline sits where you want the pod.');
+  if (hitSource) showHint('<b>Find a table</b>Move the phone slowly over a flat, textured surface. Tap when the green outline sits where you want the pod.');
+  else showHint('<b>Point at the table</b>This phone cannot detect surfaces, so the pod is placed in front of you. Hold the phone over the table and tap.');
 };
-$('#btnExitAR').onclick = () => xrSession && xrSession.end();
+// AR look: matte surfaces, soft contact shadow, room light estimate
+const ARM = [];
+let blob = null;
+function arMaterials() {
+  const seen = new Set();
+  site.traverse((o) => { if (!o.isMesh) return; for (const m of [].concat(o.material)) if (m && m.isMeshStandardMaterial && !seen.has(m)) { seen.add(m); ARM.push({ m, r: m.roughness, e: m.envMapIntensity }); } });
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 20, 64, 64, 64); gr.addColorStop(0, 'rgba(0,0,0,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  blob = new THREE.Mesh(new THREE.PlaneGeometry(FOOT.w * 1.3, FOOT.d * 1.3), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+  blob.rotation.x = -Math.PI / 2; blob.position.set(0, 0.004, 0); blob.visible = false; world.add(blob);
+}
+function arLook(on) {
+  for (const a of ARM) { a.m.roughness = on ? Math.max(a.r, 0.62) : a.r; a.m.envMapIntensity = on ? 0.6 : a.e; }
+  if (blob) blob.visible = on; shadowCatcher.material.opacity = on ? 0.38 : 0.28;
+}
+let xrLight = null, envSaved = null;
+function startLightEstimate() {
+  try {
+    xrLight = new XREstimatedLight(renderer);
+    xrLight.addEventListener('estimationstart', () => { scene.add(xrLight); hemi.intensity = 0.15; sun.intensity = 1.2; envSaved = scene.environment; if (xrLight.environment) scene.environment = xrLight.environment; });
+    xrLight.addEventListener('estimationend', () => { stopLightEstimate(true); });
+  } catch { xrLight = null; }
+}
+function stopLightEstimate(keep) {
+  if (xrLight) { scene.remove(xrLight); if (!keep) { try { xrLight.dispose && xrLight.dispose(); } catch {} xrLight = null; } }
+  hemi.intensity = 0.9; sun.intensity = 2.3; if (envSaved) { scene.environment = envSaved; envSaved = null; }
+}
+// two-finger pinch to resize and twist to turn while in AR; single taps still pick zones
+const G = { pts: new Map(), d0: 0, a0: 0, s0: 0, y0: 0, active: false, endT: 0 };
+const gest = $('#gest');
+gest.addEventListener('beforexrselect', (e) => { if (G.active || performance.now() - G.endT < 350) e.preventDefault(); });
+gest.addEventListener('pointerdown', (e) => {
+  G.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (G.pts.size === 2) { const [a, b] = [...G.pts.values()]; G.d0 = Math.hypot(a.x - b.x, a.y - b.y); G.a0 = Math.atan2(b.y - a.y, b.x - a.x); G.s0 = arScale; G.y0 = arYaw; G.active = true; }
+});
+gest.addEventListener('pointermove', (e) => {
+  if (!G.pts.has(e.pointerId)) return; G.pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (G.active && G.pts.size === 2 && placed) {
+    const [a, b] = [...G.pts.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y), ang = Math.atan2(b.y - a.y, b.x - a.x);
+    arScale = Math.max(1 / 200, Math.min(1 / 6, G.s0 * d / Math.max(1, G.d0))); world.scale.setScalar(arScale);
+    arYaw = G.y0 - (ang - G.a0); world.rotation.y = arYaw; setFootprint();
+  }
+});
+for (const ev of ['pointerup', 'pointercancel']) gest.addEventListener(ev, (e) => { G.pts.delete(e.pointerId); if (G.active && G.pts.size < 2) { G.active = false; G.endT = performance.now(); } });
+$('#btnClean').onclick = (e) => { const on = document.body.classList.toggle('clean'); e.currentTarget.setAttribute('aria-pressed', String(on)); };
+
+$('#btnExitAR').onclick = () => { if (xrSession) xrSession.end(); else if (CAM.on) stopCamView(); };
+
+function placeAhead(cam) {   // put the pod about 0.6 m ahead and 0.4 m below the phone, facing it
+  const p = new THREE.Vector3(), q = new THREE.Quaternion(); cam.getWorldPosition(p); cam.getWorldQuaternion(q);
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(q); fwd.y = 0;
+  if (fwd.lengthSq() < 1e-4) fwd.set(0, 0, -1); fwd.normalize();
+  const dist = CAM.on ? 0.85 : 0.6;
+  world.position.copy(p).addScaledVector(fwd, dist); world.position.y = p.y - 0.4;
+  arYaw = Math.atan2(-fwd.x, -fwd.z);
+}
+
+/* ---------- camera view: works on phones without Google AR (rotation only, not locked to the table) ---------- */
+const CAM = { on: false, stream: null, video: null, q: new THREE.Quaternion(), have: false, placed: false, pointers: new Map(), pinch0: 0, scale0: 0, x0: 0, yaw0: 0 };
+const _zee = new THREE.Vector3(0, 0, 1), _q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), _eul = new THREE.Euler(), _q0 = new THREE.Quaternion();
+function onOrient(e) {
+  if (e.alpha == null) return;
+  const d = Math.PI / 180, orient = ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * d;
+  _eul.set(e.beta * d, e.alpha * d, -e.gamma * d, 'YXZ');
+  CAM.q.setFromEuler(_eul).multiply(_q1).multiply(_q0.setFromAxisAngle(_zee, -orient)); CAM.have = true;
+}
+async function startCamView() {
+  try { CAM.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }); }
+  catch (e) { showHint('<b>Camera not available</b>Allow the camera for this site and try again.', false, 6000); return; }
+  if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) { try { await DeviceOrientationEvent.requestPermission(); } catch {} }
+  const v = document.createElement('video'); v.id = 'camfeed'; v.playsInline = true; v.muted = true; v.autoplay = true; v.srcObject = CAM.stream;
+  document.body.prepend(v); CAM.video = v; try { await v.play(); } catch {}
+  addEventListener('deviceorientation', onOrient);
+  CAM.on = true; CAM.placed = false; CAM.have = false;
+  document.body.classList.add('cam'); select(null); controls.enabled = false; fly = null;
+  camera.clearViewOffset(); camera.fov = 63; camera.position.set(0, 0, 0); camera.quaternion.identity(); camera.updateProjectionMatrix();
+  arScale = 1 / 80; world.scale.setScalar(arScale); shadowCatcher.visible = true; labelScale = 1.0; arLook(true);
+  $('#arbar').hidden = false;
+  setTimeout(() => { placeAhead(camera); world.rotation.set(0, arYaw, 0); CAM.placed = true; }, 400);
+  showHint('<b>Camera view</b>Point the phone down at the table. The pod follows your phone as you turn and tilt, but it is not locked to the table, so keep the phone in one spot. Drag to turn it, pinch to resize.', false, 7000);
+}
+function stopCamView() {
+  CAM.on = false; removeEventListener('deviceorientation', onOrient);
+  if (CAM.stream) CAM.stream.getTracks().forEach((t) => t.stop()); if (CAM.video) CAM.video.remove();
+  document.body.classList.remove('cam'); controls.enabled = true; $('#arbar').hidden = true; $('#hint').hidden = true;
+  camera.fov = 38; camera.updateProjectionMatrix(); camera.position.copy(HOME.pos).multiplyScalar(homeFit()); controls.target.copy(HOME.target); camera.lookAt(HOME.target);
+  world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); world.scale.setScalar(1); shadowCatcher.visible = false; labelScale = 1; arYaw = 0; arLook(false);
+}
+renderer.domElement.addEventListener('pointerdown', (e) => { if (!CAM.on) return; CAM.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); CAM.x0 = e.clientX; CAM.yaw0 = arYaw;
+  if (CAM.pointers.size === 2) { const [a, b] = [...CAM.pointers.values()]; CAM.pinch0 = Math.hypot(a.x - b.x, a.y - b.y); CAM.scale0 = arScale; } });
+renderer.domElement.addEventListener('pointermove', (e) => { if (!CAM.on || !CAM.pointers.has(e.pointerId)) return; CAM.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (CAM.pointers.size === 2) { const [a, b] = [...CAM.pointers.values()]; const d = Math.hypot(a.x - b.x, a.y - b.y); arScale = Math.max(1 / 160, Math.min(1 / 6, CAM.scale0 * d / Math.max(1, CAM.pinch0))); world.scale.setScalar(arScale); }
+  else { arYaw = CAM.yaw0 + (e.clientX - CAM.x0) * 0.01; world.rotation.y = arYaw; } });
+for (const ev of ['pointerup', 'pointercancel']) renderer.domElement.addEventListener(ev, (e) => CAM.pointers.delete(e.pointerId));
 function onAREnd() {
   hitSource = null; xrSession = null; placed = false;
   document.body.classList.remove('ar'); reticle.visible = false; $('#hint').hidden = true;
   world.visible = true; world.position.set(0, 0, 0); world.rotation.set(0, 0, 0); world.scale.setScalar(1); shadowCatcher.visible = false;
-  labelScale = 1; renderer.setSize(innerWidth, innerHeight); frameAroundCard();
+  labelScale = 1; renderer.setSize(innerWidth, innerHeight); frameAroundCard(); arLook(false); stopLightEstimate();
 }
 for (const el of document.querySelectorAll('#ui .hit')) el.addEventListener('beforexrselect', (e) => e.preventDefault());
 const controller = renderer.xr.getController(0); scene.add(controller);
 controller.addEventListener('select', () => {
   if (!renderer.xr.isPresenting) return;
   if (!placed) {
-    if (!reticle.visible) return;
-    world.position.setFromMatrixPosition(reticle.matrix); world.scale.setScalar(arScale); world.rotation.set(0, arYaw, 0);
+    if (hitSource && !reticle.visible) return;
+    if (hitSource) world.position.setFromMatrixPosition(reticle.matrix);
+    else placeAhead(renderer.xr.getCamera());
+    world.scale.setScalar(arScale); world.rotation.set(0, arYaw, 0);
     world.visible = true; placed = true; reticle.visible = false; $('#arbar').hidden = false;
     showHint('Tap a label or a zone. Walk around the table to look closer.', true, 4500);
     return;
@@ -1575,7 +1836,7 @@ $('#arSmaller').onclick = () => { arScale = Math.max(1 / 160, arScale / 1.25); w
 $('#arBigger').onclick = () => { arScale = Math.min(1 / 6, arScale * 1.25); world.scale.setScalar(arScale); setFootprint(); };
 $('#arRotL').onclick = () => { arYaw += Math.PI / 12; world.rotation.y = arYaw; setFootprint(); };
 $('#arRotR').onclick = () => { arYaw -= Math.PI / 12; world.rotation.y = arYaw; setFootprint(); };
-$('#arMove').onclick = () => { placed = false; world.visible = false; $('#arbar').hidden = true; showHint('<b>Move the pod</b>Point at a new spot and tap.', false); };
+$('#arMove').onclick = () => { if (CAM.on) { placeAhead(camera); world.rotation.set(0, arYaw, 0); return; } placed = false; world.visible = false; $('#arbar').hidden = true; showHint('<b>Move the pod</b>Point at a new spot and tap.', false); };
 
 /* ---------- loop ---------- */
 const clock = new THREE.Clock();
@@ -1584,10 +1845,36 @@ if (TEST) window.__ml = { S, P, SET, MIXD, updatePress, startPress, startBatch, 
 function simStep(dt) {
   updateBatch(dt); tickDrying(dt); updateGrader(dt); updateMixer(dt); updatePress(dt);
   for (const f of Object.values(FLOWS)) f.update(dt);
-  updateBags(dt); updateTank(dt);
+  updateBags(dt); updateTank(dt); updateParticles(dt); updateTruck(dt);
+  for (let i = 0; i < 4; i++) if (FLOWS['drop' + i]) FLOWS['drop' + i].on = S.batch.running && S.batch.bag === i;
 }
 if (TEST) window.__ml.step = (sec, h = 0.05) => { for (let x = 0; x < sec; x += h) simStep(h); };
-let uiT = 0, camLocalPos = null;
+let uiT = 0, camLocalPos = null, declutT = 0;
+const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _up = new THREE.Vector3();
+function declutter() {   // hide labels that would overlap a nearer one or run off the screen
+  const cam = renderer.xr.isPresenting ? renderer.xr.getCamera() : camera;
+  const W = innerWidth, H = innerHeight, placedR = [];
+  // keep labels off the top bar, the zone rail and the open card
+  const card = $('#card'), cardOn = !card.hidden && !document.body.classList.contains('clean') && !document.body.classList.contains('tour');
+  const cr = cardOn ? card.getBoundingClientRect() : null;
+  if (cr) placedR.push({ x0: cr.left, x1: cr.right, y0: cr.top, y1: cr.bottom });
+  placedR.push({ x0: 0, x1: W, y0: 0, y1: 64 });
+  if (!document.body.classList.contains('clean')) placedR.push({ x0: 0, x1: W, y0: H - 58, y1: H });
+  cam.updateMatrixWorld(); _up.set(0, 1, 0).applyQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()));
+  const camPos = cam.getWorldPosition(new THREE.Vector3());
+  const items = labels.children.map((sp) => { sp.getWorldPosition(_v1); return { sp, d: _v1.distanceTo(camPos), p: _v1.clone() }; })
+    .sort((a, b) => (b.sp.userData.zoneId === selected) - (a.sp.userData.zoneId === selected) || a.d - b.d);
+  for (const it of items) {
+    const sp = it.sp, hw = sp.scale.y * world.scale.x;
+    _v1.copy(it.p).project(cam); _v2.copy(it.p).addScaledVector(_up, hw).project(cam);
+    const x = (_v1.x + 1) / 2 * W, y = (1 - _v1.y) / 2 * H, h = Math.abs((_v2.y - _v1.y) / 2 * H), w = h * sp.userData.aspect;
+    const r = { x0: x - w / 2 - 3, x1: x + w / 2 + 3, y0: y - h - 3, y1: y + 3 };
+    let ok = _v1.z < 1 && r.x0 > 0 && r.x1 < W && r.y0 > 0;
+    if (ok) ok = !placedR.some((q) => r.x0 < q.x1 && r.x1 > q.x0 && r.y0 < q.y1 && r.y1 > q.y0);
+    sp.userData.show = ok; if (ok) placedR.push(r);
+  }
+}
+
 const perf = { acc: 0, n: 0 };
 function adaptQuality(dt) {   // drop resolution when frames get slow, raise it again when there is headroom
   if (TEST || renderer.xr.isPresenting) return;
@@ -1609,19 +1896,27 @@ renderer.setAnimationLoop((time, frame) => {
     } else reticle.visible = false;
   }
   if (fly) {
-    fly.t += dt / fly.dur; const k = ease(Math.min(1, fly.t));
-    camera.position.lerpVectors(fly.p0, fly.p1, k); controls.target.lerpVectors(fly.t0, fly.t1, k);
+    fly.t += dt / fly.dur; const u = Math.min(1, fly.t), k = 0.5 - 0.5 * Math.cos(Math.PI * u);   // ease in-out sine
+    camera.position.lerpVectors(fly.p0, fly.p1, k); camera.position.y += Math.sin(Math.PI * k) * 0.12 * fly.p0.distanceTo(fly.p1);
+    controls.target.lerpVectors(fly.t0, fly.t1, 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, u * 1.15)));
     if (fly.t >= 1) fly = null;
   }
   for (const r of Object.values(roofParts)) {
     const cur = r.mesh.userData.k || 0, k = cur + (r.lift - cur) * Math.min(1, dt * 6);
-    r.mesh.userData.k = k; r.mesh.position.y = r.y0 + k * 2.6; r.mesh.material.opacity = 1 - k * 0.75; r.mesh.material.depthWrite = k < 0.5;
+    r.mesh.userData.k = k; r.mesh.position.y = r.y0 + k * 4.5; r.mesh.material.opacity = 1 - k * 0.85; r.mesh.material.depthWrite = k < 0.5;
   }
   if (site) {
     simStep(sdt); updateScreens(dt);
     const camLocal = camLocalPos = site.worldToLocal((renderer.xr.isPresenting ? renderer.xr.getCamera() : camera).getWorldPosition(new THREE.Vector3()));
     if (labels.visible) {
-      for (const sp of labels.children) { const k = Math.min(1, Math.max(0.16, camLocal.distanceTo(sp.position) / 30)); const h = 1.0 * labelScale * k; sp.scale.set(h * sp.userData.aspect, h, 1); }
+      for (const sp of labels.children) {
+        const k = Math.min(1, Math.max(0.16, camLocal.distanceTo(sp.position) / 30));
+        const pop = sp.userData.pop = (sp.userData.pop || 0) + (((sp.userData.zoneId === selected) ? 1 : 0) - (sp.userData.pop || 0)) * Math.min(1, dt * 8);
+        const h = 1.0 * labelScale * k * (1 + 0.15 * pop); sp.scale.set(h * sp.userData.aspect, h, 1);
+        const target = sp.userData.show === false ? 0 : 1;
+        sp.material.opacity += (target - sp.material.opacity) * Math.min(1, dt * 7);
+      }
+      declutT -= dt; if (declutT <= 0) { declutT = 0.12; declutter(); }
     }
     uiT -= dt;
     updateTour(sdt);
@@ -1632,8 +1927,13 @@ renderer.setAnimationLoop((time, frame) => {
     }
     adaptQuality(dt);
   }
-  if (bracket.visible) bracketMat.opacity = 0.55 + 0.4 * Math.sin(time * 0.005);
-  if (!renderer.xr.isPresenting) controls.update();
+  if (bracket.visible) {
+    bracket.userData.t = (bracket.userData.t || 0) + dt; const e = clamp01(bracket.userData.t / 0.6), k = 1 - Math.pow(1 - e, 3);
+    bracket.scale.set(1.35 - 0.35 * k, 1, 1.35 - 0.35 * k);
+    bracketMat.opacity = k * (0.6 + 0.3 * Math.sin(time * 0.004));
+  }
+  if (CAM.on) { if (CAM.have) camera.quaternion.slerp(CAM.q, 0.35); }
+  else if (!renderer.xr.isPresenting) controls.update();
   renderer.render(scene, camera);
 });
 addEventListener('resize', () => {
